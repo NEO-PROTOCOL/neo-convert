@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 
 interface ToolPageProps {
     icon: string;
@@ -24,9 +25,10 @@ function revokeBlobUrls(results: { name: string; url: string }[]): void {
     }
 }
 
-export default function ToolPage({
+function ToolPageInner({
     icon, title, description, accept, acceptLabel, color, onProcess, multi = false, tip,
 }: ToolPageProps) {
+    const searchParams = useSearchParams();
     const [files, setFiles] = useState<File[]>([]);
     const [drag, setDrag] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -42,16 +44,6 @@ export default function ToolPage({
             .filter((value) => value.startsWith("."))
     );
 
-    useEffect(() => {
-        latestResultsRef.current = results;
-    }, [results]);
-
-    useEffect(() => {
-        return () => {
-            revokeBlobUrls(latestResultsRef.current);
-        };
-    }, []);
-
     const clearResults = useCallback(() => {
         setResults((previous) => {
             revokeBlobUrls(previous);
@@ -60,7 +52,7 @@ export default function ToolPage({
         setCloudUrls({});
     }, []);
 
-    const addFiles = useCallback((incoming: FileList | null) => {
+    const addFiles = useCallback((incoming: FileList | File[] | null) => {
         if (!incoming) return;
         const arr = Array.from(incoming);
         const validFiles: File[] = [];
@@ -89,6 +81,34 @@ export default function ToolPage({
         clearResults();
         setError("");
     }, [clearResults, multi]);
+
+    // Lógica para auto-carregar arquivo via URL (vindo da Home)
+    useEffect(() => {
+        const fileUrl = searchParams.get("fileUrl");
+        const fileName = searchParams.get("fileName") || "arquivo_importado";
+
+        if (fileUrl && files.length === 0 && !loading) {
+            setLoading(true);
+            fetch(fileUrl)
+                .then((res) => res.blob())
+                .then((blob) => {
+                    const file = new File([blob], fileName, { type: blob.type });
+                    addFiles([file]);
+                })
+                .catch((e) => setError("Falha ao carregar arquivo da nuvem."))
+                .finally(() => setLoading(false));
+        }
+    }, [searchParams, addFiles, files.length, loading]);
+
+    useEffect(() => {
+        latestResultsRef.current = results;
+    }, [results]);
+
+    useEffect(() => {
+        return () => {
+            revokeBlobUrls(latestResultsRef.current);
+        };
+    }, []);
 
     const handleProcess = async () => {
         if (!files.length) return;
@@ -166,8 +186,8 @@ export default function ToolPage({
                     <div style={{
                         width: 72, height: 72, borderRadius: 20,
                         background: `${color}18`, border: `1px solid ${color}30`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 32, margin: "0 auto 20px",
+                        display: "flex", alignItems: "center", justifyCenter: "center",
+                        fontSize: 32, margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center"
                     }}>{icon}</div>
                     <h1 style={{ fontSize: "clamp(28px, 4vw, 40px)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 10 }}>
                         {title}
@@ -334,5 +354,13 @@ export default function ToolPage({
                 )}
             </div>
         </div>
+    );
+}
+
+export default function ToolPage(props: ToolPageProps) {
+    return (
+        <Suspense fallback={<div>Carregando ferramentas...</div>}>
+            <ToolPageInner {...props} />
+        </Suspense>
     );
 }

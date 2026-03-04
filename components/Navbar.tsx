@@ -42,8 +42,8 @@ export default function Navbar() {
               color: "var(--text-secondary)", fontSize: 14, fontWeight: 500,
               textDecoration: "none", transition: "all 150ms",
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = "var(--text-primary)")}
-            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-secondary)")}
+              onMouseEnter={e => (e.currentTarget.style.color = "var(--text-primary)")}
+              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-secondary)")}
             >
               {item.label}
             </Link>
@@ -53,7 +53,7 @@ export default function Navbar() {
         {/* CTA */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Link href="#precos" className="btn-primary" style={{ padding: "9px 20px", fontSize: 14 }}>
-            Começar grátis
+            Iniciar
           </Link>
         </div>
       </div>
