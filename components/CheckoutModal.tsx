@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface CheckoutModalProps {
     isOpen: boolean;
@@ -31,6 +31,8 @@ export default function CheckoutModal({
     } | null>(null);
     const [copied, setCopied] = useState(false);
     const [timeLeft, setTimeLeft] = useState(3600);
+    const submitAbortRef = useRef<AbortController | null>(null);
+    const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Countdown do Pix
     useEffect(() => {
@@ -43,6 +45,13 @@ export default function CheckoutModal({
         }, 1000);
         return () => clearInterval(interval);
     }, [step]);
+
+    useEffect(() => {
+        return () => {
+            submitAbortRef.current?.abort();
+            if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+        };
+    }, []);
 
     // Fechar com Escape
     useEffect(() => {
@@ -59,12 +68,36 @@ export default function CheckoutModal({
         setError("");
         setLoading(true);
 
+        const cleanName = name.trim().replace(/\s+/g, " ");
+        const cleanEmail = email.trim().toLowerCase();
+        const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
+
+        if (!cleanName || cleanName.length > 80) {
+            setError("Nome inválido.");
+            setLoading(false);
+            return;
+        }
+        if (!isValidEmail || cleanEmail.length > 254) {
+            setError("Email inválido.");
+            setLoading(false);
+            return;
+        }
+
+        let timeout: ReturnType<typeof setTimeout> | null = null;
         try {
+            submitAbortRef.current?.abort();
+            const controller = new AbortController();
+            submitAbortRef.current = controller;
+            timeout = setTimeout(() => controller.abort(), 12000);
+
             const res = await fetch("/api/checkout", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ planId, name, email }),
+                body: JSON.stringify({ planId, name: cleanName, email: cleanEmail }),
+                signal: controller.signal,
             });
+            if (timeout) clearTimeout(timeout);
+            submitAbortRef.current = null;
 
             const data = await res.json();
 
@@ -75,26 +108,52 @@ export default function CheckoutModal({
 
             setPixData(data);
             setStep("pix");
+            if (typeof data.expiresAt === "string") {
+                const expiresAt = new Date(data.expiresAt).getTime();
+                if (Number.isFinite(expiresAt)) {
+                    const seconds = Math.max(Math.floor((expiresAt - Date.now()) / 1000), 0);
+                    setTimeLeft(seconds);
+                }
+            } else {
+                setTimeLeft(3600);
+            }
         } catch {
-            setError("Erro de conexão. Verifique sua internet.");
+            if (submitAbortRef.current?.signal.aborted) {
+                setError("Tempo de resposta excedido. Tente novamente.");
+            } else {
+                setError("Erro de conexão. Verifique sua internet.");
+            }
         } finally {
+            if (timeout) clearTimeout(timeout);
             setLoading(false);
+            submitAbortRef.current = null;
         }
     };
 
     const copyPix = () => {
         if (!pixData?.brCode) return;
-        navigator.clipboard.writeText(pixData.brCode);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        navigator.clipboard
+            .writeText(pixData.brCode)
+            .then(() => {
+                setCopied(true);
+                if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+                copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+            })
+            .catch(() => {
+                setError("Não foi possível copiar o código Pix.");
+            });
     };
 
     const reset = () => {
+        submitAbortRef.current?.abort();
+        submitAbortRef.current = null;
+        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
         setStep("form");
         setName("");
         setEmail("");
         setError("");
         setPixData(null);
+        setCopied(false);
         setTimeLeft(3600);
         onClose();
     };

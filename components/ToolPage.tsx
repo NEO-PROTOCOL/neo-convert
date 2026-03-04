@@ -1,6 +1,6 @@
 "use client";
-import { useState, useCallback } from "react";
 import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface ToolPageProps {
     icon: string;
@@ -14,6 +14,16 @@ interface ToolPageProps {
     tip?: string;
 }
 
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+
+function revokeBlobUrls(results: { name: string; url: string }[]): void {
+    for (const result of results) {
+        if (result.url.startsWith("blob:")) {
+            URL.revokeObjectURL(result.url);
+        }
+    }
+}
+
 export default function ToolPage({
     icon, title, description, accept, acceptLabel, color, onProcess, multi = false, tip,
 }: ToolPageProps) {
@@ -21,23 +31,76 @@ export default function ToolPage({
     const [drag, setDrag] = useState(false);
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<{ name: string; url: string }[]>([]);
+    const [cloudUrls, setCloudUrls] = useState<Record<string, string>>({});
+    const [uploadingKey, setUploadingKey] = useState<string | null>(null);
     const [error, setError] = useState("");
+    const latestResultsRef = useRef<{ name: string; url: string }[]>([]);
+    const acceptedExtensions = useRef(
+        accept
+            .split(",")
+            .map((value) => value.trim().toLowerCase())
+            .filter((value) => value.startsWith("."))
+    );
+
+    useEffect(() => {
+        latestResultsRef.current = results;
+    }, [results]);
+
+    useEffect(() => {
+        return () => {
+            revokeBlobUrls(latestResultsRef.current);
+        };
+    }, []);
+
+    const clearResults = useCallback(() => {
+        setResults((previous) => {
+            revokeBlobUrls(previous);
+            return [];
+        });
+        setCloudUrls({});
+    }, []);
 
     const addFiles = useCallback((incoming: FileList | null) => {
         if (!incoming) return;
         const arr = Array.from(incoming);
-        setFiles((prev) => multi ? [...prev, ...arr] : arr);
-        setResults([]);
+        const validFiles: File[] = [];
+
+        for (const file of arr) {
+            if (!file.size || file.size > MAX_FILE_SIZE_BYTES) {
+                setError(`Arquivo inválido: ${file.name}. Limite máximo de 50 MB.`);
+                continue;
+            }
+
+            const lowerName = file.name.toLowerCase();
+            if (
+                acceptedExtensions.current.length > 0 &&
+                !acceptedExtensions.current.some((ext) => lowerName.endsWith(ext))
+            ) {
+                setError(`Formato não permitido: ${file.name}.`);
+                continue;
+            }
+
+            validFiles.push(file);
+        }
+
+        if (!validFiles.length) return;
+
+        setFiles((prev) => (multi ? [...prev, ...validFiles] : [validFiles[0]]));
+        clearResults();
         setError("");
-    }, [multi]);
+    }, [clearResults, multi]);
 
     const handleProcess = async () => {
         if (!files.length) return;
         setLoading(true);
         setError("");
+        clearResults();
         try {
-            const res = await onProcess(files);
-            setResults(res);
+            const processed = await onProcess(files);
+            setResults((previous) => {
+                revokeBlobUrls(previous);
+                return processed;
+            });
         } catch (e) {
             setError(e instanceof Error ? e.message : "Erro ao processar arquivo.");
         } finally {
@@ -45,7 +108,48 @@ export default function ToolPage({
         }
     };
 
-    const reset = () => { setFiles([]); setResults([]); setError(""); };
+    const uploadToCloud = async (res: { name: string; url: string }) => {
+        setUploadingKey(res.url);
+        setError("");
+
+        try {
+            if (!res.url.startsWith("blob:")) {
+                throw new Error("URL de resultado inválida.");
+            }
+
+            const response = await fetch(res.url, { cache: "no-store" });
+            if (!response.ok) {
+                throw new Error("Falha ao ler arquivo processado.");
+            }
+
+            const blob = await response.blob();
+            const formData = new FormData();
+            formData.append("file", blob, res.name);
+
+            const uploadRes = await fetch("/api/upload-to-cloud", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!uploadRes.ok) throw new Error("Erro ao gerar link na nuvem.");
+            const data = await uploadRes.json() as { url?: string };
+            if (!data.url) throw new Error("Upload concluído sem URL.");
+            const publicUrl = data.url;
+
+            setCloudUrls((previous) => ({ ...previous, [res.url]: publicUrl }));
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Erro no storage serverless.");
+        } finally {
+            setUploadingKey(null);
+        }
+    };
+
+    const reset = () => {
+        setFiles([]);
+        clearResults();
+        setError("");
+        setUploadingKey(null);
+    };
 
     return (
         <div style={{ minHeight: "100vh", paddingTop: 100, paddingBottom: 80 }}>
@@ -96,7 +200,7 @@ export default function ToolPage({
                                 <div style={{ fontSize: 40 }}>📄</div>
                                 <div>
                                     {files.map((f) => (
-                                        <div key={f.name} style={{ fontWeight: 600, color: "var(--text-primary)" }}>{f.name}</div>
+                                        <div key={`${f.name}-${f.lastModified}-${f.size}`} style={{ fontWeight: 600, color: "var(--text-primary)" }}>{f.name}</div>
                                     ))}
                                     <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 4 }}>
                                         {files.length > 1 ? `${files.length} arquivos` : `${(files[0].size / 1024 / 1024).toFixed(2)} MB`}
@@ -113,10 +217,10 @@ export default function ToolPage({
                                     margin: "0 auto 20px", fontSize: 28,
                                 }}>📄</div>
                                 <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-                                    {drag ? "Solte aqui! 🎯" : `Arraste ${multi ? "os arquivos" : "o arquivo"}`}
+                                    {drag ? "Solte aqui" : `Arraste ${multi ? "os arquivos" : "o arquivo"}`}
                                 </h3>
                                 <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 20 }}>{acceptLabel}</p>
-                                <div className="btn-primary" style={{ display: "inline-flex" }}>⬆️ &nbsp;Selecionar</div>
+                                <div className="btn-primary" style={{ display: "inline-flex" }}>Selecionar</div>
                             </>
                         )}
                     </label>
@@ -171,29 +275,58 @@ export default function ToolPage({
                         borderRadius: "var(--radius-xl)", padding: 32, textAlign: "center",
                     }}>
                         <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
-                        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Pronto!</h2>
+                        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Pronto</h2>
                         <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 24 }}>
                             Seu arquivo foi processado com sucesso.
                         </p>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-                            {results.map((r) => (
-                                <a
-                                    key={r.name}
-                                    href={r.url}
-                                    download={r.name}
-                                    className="btn-primary"
-                                    style={{ justifyContent: "center" }}
-                                >
-                                    ⬇️ Baixar {r.name}
-                                </a>
-                            ))}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+                            {results.map((r) => {
+                                const publicLink = cloudUrls[r.url];
+                                const isUploading = uploadingKey === r.url;
+
+                                return (
+                                    <div key={`${r.name}-${r.url}`} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                        <a
+                                            href={r.url}
+                                            download={r.name}
+                                            className="btn-primary"
+                                            style={{ justifyContent: "center" }}
+                                        >
+                                            ⬇️ Baixar {r.name}
+                                        </a>
+
+                                        {!publicLink ? (
+                                            <button
+                                                onClick={() => uploadToCloud(r)}
+                                                disabled={isUploading}
+                                                className="btn-secondary"
+                                                style={{ justifyContent: "center", opacity: isUploading ? 0.7 : 1 }}
+                                            >
+                                                {isUploading ? "Gerando link..." : "☁️ Gerar Link Seguro (Vercel Blob)"}
+                                            </button>
+                                        ) : (
+                                            <div style={{
+                                                padding: 12, background: "rgba(0,255,157,0.05)",
+                                                border: "1px solid var(--border-accent)", borderRadius: "var(--radius-md)"
+                                            }}>
+                                                <p style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>Link expira conforme política de retenção:</p>
+                                                <a href={publicLink} target="_blank" rel="noreferrer" style={{
+                                                    fontSize: 13, color: "var(--neo-green)", wordBreak: "break-all", textDecoration: "none", fontWeight: 600
+                                                }}>
+                                                    {publicLink}
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
 
                         <button
                             onClick={reset}
                             className="btn-secondary"
-                            style={{ width: "100%", justifyContent: "center" }}
+                            style={{ width: "100%", justifyContent: "center", marginTop: 16 }}
                         >
                             Processar outro arquivo
                         </button>

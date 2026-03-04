@@ -1,14 +1,26 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+
+const MAX_SIZE_BYTES = 50 * 1024 * 1024;
 
 export default function UploadZone() {
   const [drag, setDrag] = useState(false);
   const [loading, setLoading] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleFile = useCallback((file: File) => {
     if (!file) return;
+    if (!file.size || file.size > MAX_SIZE_BYTES) return;
+
     setLoading(true);
-    setTimeout(() => { setLoading(false); }, 2000);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => { setLoading(false); }, 2000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, []);
 
   return (

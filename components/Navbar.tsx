@@ -1,10 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false);
-
   return (
     <nav style={{
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
