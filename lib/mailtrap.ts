@@ -3,8 +3,10 @@
 
 interface MailtrapEmail {
     to: string;
-    subject: string;
-    html: string;
+    subject?: string; // Opcional se usar template
+    html?: string;    // Opcional se usar template
+    templateUuid?: string;
+    templateVariables?: Record<string, string | number | boolean>;
     fromName?: string;
     fromEmail?: string;
 }
@@ -12,7 +14,15 @@ interface MailtrapEmail {
 const MAILTRAP_TIMEOUT_MS = 10_000;
 const SIMPLE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export async function sendEmail({ to, subject, html, fromName, fromEmail }: MailtrapEmail) {
+export async function sendEmail({
+    to,
+    subject,
+    html,
+    templateUuid,
+    templateVariables,
+    fromName,
+    fromEmail
+}: MailtrapEmail) {
     const apiToken = process.env.MAILTRAP_API_TOKEN;
     if (!apiToken) {
         console.warn("MAILTRAP_API_TOKEN não configurado — email ignorado");
@@ -24,40 +34,57 @@ export async function sendEmail({ to, subject, html, fromName, fromEmail }: Mail
         throw new Error("Mailtrap: email de destino inválido");
     }
 
-    if (!subject.trim() || subject.length > 200) {
-        throw new Error("Mailtrap: assunto inválido");
-    }
-
     const from = {
-        email: fromEmail || process.env.MAILTRAP_FROM_EMAIL || "no-reply@neo-convert.site",
-        name: fromName || process.env.MAILTRAP_FROM_NAME || "NeoConvert",
+        email: fromEmail || process.env.MAILTRAP_FROM_EMAIL || "team@neo-convert.site",
+        name: fromName || process.env.MAILTRAP_FROM_NAME || "NΞØ CONVΞRT",
     };
+
+    const payload: any = {
+        from,
+        to: [{ email: toEmail }],
+    };
+
+    // Decide entre Template ou HTML direto
+    if (templateUuid) {
+        payload.template_uuid = templateUuid;
+        if (templateVariables) {
+            payload.template_variables = templateVariables;
+        }
+    } else {
+        if (!subject || !html) {
+            throw new Error("Mailtrap: subject e html são obrigatórios caso não use templateUuid");
+        }
+        payload.subject = subject;
+        payload.html = html;
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), MAILTRAP_TIMEOUT_MS);
 
-    const res = await fetch("https://send.api.mailtrap.io/api/send", {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${apiToken}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            from,
-            to: [{ email: toEmail }],
-            subject,
-            html,
-        }),
-        signal: controller.signal,
-    }).finally(() => {
+    try {
+        const res = await fetch("https://send.api.mailtrap.io/api/send", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${apiToken}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+        });
+
+        if (!res.ok) {
+            const err = await res.text();
+            console.error("Mailtrap error:", err);
+            throw new Error(`Mailtrap: ${err}`);
+        }
+
+        return await res.json();
+    } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+            throw new Error("Mailtrap: timeout no envio");
+        }
+        throw error;
+    } finally {
         clearTimeout(timeout);
-    });
-
-    if (!res.ok) {
-        const err = await res.text();
-        console.error("Mailtrap error:", err);
-        throw new Error(`Mailtrap: ${err}`);
     }
-
-    return res.json();
 }

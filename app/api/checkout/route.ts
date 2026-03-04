@@ -240,9 +240,15 @@ export async function POST(req: NextRequest) {
                 : "";
 
             try {
+                // 1. Enviar o email de Boas-vindas (Template Novo)
+                // Isso valida se as variáveis de Template UUID estão funcionando
+                const { EmailService } = await import("@/lib/email-service");
+                await EmailService.sendWelcome(email, name, effectiveCorrelationId.split('-').pop() || "CORE");
+
+                // 2. Enviar as instruções do Pix (HTML Manual por enquanto)
                 await sendEmail({
                     to: email,
-                    subject: `Seu Pix para ${plan.name} | NeoConvert`,
+                    subject: `Seu Pix para ${plan.name} | NΞØ CONVΞRT`,
                     html: `
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -271,14 +277,14 @@ export async function POST(req: NextRequest) {
     </div>
     <div style="text-align:center;font-size:12px;color:rgba(232,232,240,0.3);">
       <p>Dúvidas? <a href="mailto:suporte@neo-convert.site" style="color:#00ff9d;text-decoration:none;">suporte@neo-convert.site</a></p>
-      <p style="margin-top:8px;">© ${new Date().getFullYear()} NeoConvert</p>
+      <p style="margin-top:8px;">© ${new Date().getFullYear()} NΞØ CONVΞRT</p>
     </div>
   </div>
 </body>
 </html>`,
                 });
             } catch (error) {
-                console.error("Falha ao enviar email de checkout:", error);
+                console.error("Falha ao enviar e-mails de checkout:", error);
             }
         }
 
