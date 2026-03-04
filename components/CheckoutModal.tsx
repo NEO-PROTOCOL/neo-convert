@@ -164,8 +164,7 @@ export default function CheckoutModal({
         <div
             style={{
                 position: "fixed", inset: 0, zIndex: 1000,
-                background: "rgba(5,5,8,0.85)",
-                backdropFilter: "blur(12px)",
+                background: "rgba(5,5,8,0.95)", // Aumentado de 0.85 para 0.95 para compensar falta do blur
                 display: "flex", alignItems: "center", justifyContent: "center",
                 padding: 24,
                 animation: "fadeIn 0.2s ease",
@@ -210,164 +209,28 @@ export default function CheckoutModal({
 
                 {/* STEP: Form */}
                 {step === "form" && (
-                    <form onSubmit={handleSubmit}>
-                        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Assinar agora</h2>
-                        <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 28 }}>
-                            Preencha os dados para gerar o QR Code Pix.
-                        </p>
-
-                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                    Seu nome
-                                </label>
-                                <input
-                                    id="checkout-name"
-                                    type="text"
-                                    required
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="João Silva"
-                                    style={{
-                                        width: "100%", padding: "12px 16px",
-                                        background: "var(--bg-elevated)", border: "1px solid var(--border-default)",
-                                        borderRadius: "var(--radius-md)", color: "var(--text-primary)",
-                                        fontSize: 15, outline: "none", boxSizing: "border-box",
-                                        transition: "border-color 200ms",
-                                        fontFamily: "inherit",
-                                    }}
-                                    onFocus={(e) => e.target.style.borderColor = "var(--neo-green)"}
-                                    onBlur={(e) => e.target.style.borderColor = "var(--border-default)"}
-                                />
-                            </div>
-
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                    E-mail
-                                </label>
-                                <input
-                                    id="checkout-email"
-                                    type="email"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="joao@empresa.com"
-                                    style={{
-                                        width: "100%", padding: "12px 16px",
-                                        background: "var(--bg-elevated)", border: "1px solid var(--border-default)",
-                                        borderRadius: "var(--radius-md)", color: "var(--text-primary)",
-                                        fontSize: 15, outline: "none", boxSizing: "border-box",
-                                        transition: "border-color 200ms",
-                                        fontFamily: "inherit",
-                                    }}
-                                    onFocus={(e) => e.target.style.borderColor = "var(--neo-green)"}
-                                    onBlur={(e) => e.target.style.borderColor = "var(--border-default)"}
-                                />
-                            </div>
-                        </div>
-
-                        {error && (
-                            <div style={{
-                                marginTop: 16, padding: "12px 16px",
-                                background: "rgba(255,45,85,0.1)", border: "1px solid rgba(255,45,85,0.3)",
-                                borderRadius: "var(--radius-md)", color: "#ff2d55", fontSize: 13,
-                            }}>
-                                ⚠️ {error}
-                            </div>
-                        )}
-
-                        <button
-                            id="checkout-submit"
-                            type="submit"
-                            disabled={loading}
-                            className="btn-primary"
-                            style={{ width: "100%", marginTop: 24, justifyContent: "center", opacity: loading ? 0.7 : 1 }}
-                        >
-                            {loading ? (
-                                <>
-                                    <span style={{
-                                        width: 16, height: 16, border: "2px solid rgba(0,0,0,0.3)",
-                                        borderTopColor: "#000", borderRadius: "50%",
-                                        animation: "spin 0.7s linear infinite",
-                                        display: "inline-block",
-                                    }} />
-                                    Gerando Pix...
-                                </>
-                            ) : "⚡ Gerar QR Code Pix"}
-                        </button>
-
-                        <p style={{ textAlign: "center", marginTop: 14, fontSize: 12, color: "var(--text-muted)" }}>
-                            🔒 Pix seguro · sem cartão · cancele quando quiser
-                        </p>
-                    </form>
+                    <CheckoutForm
+                        name={name}
+                        setName={setName}
+                        email={email}
+                        setEmail={setEmail}
+                        loading={loading}
+                        error={error}
+                        onSubmit={handleSubmit}
+                    />
                 )}
 
                 {/* STEP: Pix */}
                 {step === "pix" && pixData && (
-                    <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: 12, fontFamily: "monospace", color: "var(--neo-green)", marginBottom: 4 }}>
-                            ⏱ Expira em {formatTime(timeLeft)}
-                        </div>
-                        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Pague com Pix</h2>
-                        <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 24 }}>
-                            Escaneie o QR Code ou copie o código abaixo.
-                        </p>
-
-                        {pixData.qrCode && (
-                            <div style={{
-                                display: "inline-block", padding: 16,
-                                background: "#fff", borderRadius: 16, marginBottom: 24,
-                            }}>
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={`data:image/png;base64,${pixData.qrCode}`}
-                                    alt="QR Code Pix"
-                                    width={200} height={200}
-                                    style={{ display: "block" }}
-                                />
-                            </div>
-                        )}
-
-                        {pixData.brCode && (
-                            <>
-                                <div style={{
-                                    background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)",
-                                    borderRadius: "var(--radius-md)", padding: "12px 16px",
-                                    fontFamily: "monospace", fontSize: 11,
-                                    color: "var(--text-secondary)", wordBreak: "break-all",
-                                    textAlign: "left", marginBottom: 12, maxHeight: 80, overflow: "hidden",
-                                }}>
-                                    {pixData.brCode}
-                                </div>
-                                <button
-                                    onClick={copyPix}
-                                    className="btn-primary"
-                                    style={{ width: "100%", justifyContent: "center" }}
-                                >
-                                    {copied ? "✓ Copiado!" : "📋 Copiar Pix Copia e Cola"}
-                                </button>
-                            </>
-                        )}
-
-                        <div style={{
-                            marginTop: 20, padding: "12px 16px",
-                            background: "var(--neo-green-dim)", border: "1px solid var(--border-accent)",
-                            borderRadius: "var(--radius-md)", fontSize: 13, color: "var(--text-secondary)",
-                        }}>
-                            📧 Enviamos o QR Code para <strong style={{ color: "var(--neo-green)" }}>{email}</strong>
-                        </div>
-
-                        <button
-                            onClick={reset}
-                            style={{
-                                marginTop: 16, background: "none", border: "none",
-                                color: "var(--text-muted)", fontSize: 13, cursor: "pointer",
-                                textDecoration: "underline",
-                            }}
-                        >
-                            Fechar
-                        </button>
-                    </div>
+                    <PixStep
+                        pixData={pixData}
+                        timeLeft={timeLeft}
+                        formatTime={formatTime}
+                        email={email}
+                        copied={copied}
+                        copyPix={copyPix}
+                        reset={reset}
+                    />
                 )}
             </div>
 
@@ -378,3 +241,154 @@ export default function CheckoutModal({
         </div>
     );
 }
+
+import { memo } from "react";
+
+const CheckoutForm = memo(({ name, setName, email, setEmail, loading, error, onSubmit }: any) => (
+    <form onSubmit={onSubmit}>
+        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Assinar agora</h2>
+        <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 28 }}>
+            Preencha os dados para gerar o QR Code Pix.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    Seu nome
+                </label>
+                <input
+                    id="checkout-name"
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="João Silva"
+                    style={{
+                        width: "100%", padding: "12px 16px",
+                        background: "var(--bg-elevated)", border: "1px solid var(--border-default)",
+                        borderRadius: "var(--radius-md)", color: "var(--text-primary)",
+                        fontSize: 15, outline: "none", boxSizing: "border-box",
+                        transition: "border-color 200ms",
+                        fontFamily: "inherit",
+                    }}
+                />
+            </div>
+
+            <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    E-mail
+                </label>
+                <input
+                    id="checkout-email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="joao@empresa.com"
+                    style={{
+                        width: "100%", padding: "12px 16px",
+                        background: "var(--bg-elevated)", border: "1px solid var(--border-default)",
+                        borderRadius: "var(--radius-md)", color: "var(--text-primary)",
+                        fontSize: 15, outline: "none", boxSizing: "border-box",
+                        transition: "border-color 200ms",
+                        fontFamily: "inherit",
+                    }}
+                />
+            </div>
+        </div>
+
+        {error && (
+            <div style={{
+                marginTop: 16, padding: "12px 16px",
+                background: "rgba(255,45,85,0.1)", border: "1px solid rgba(255,45,85,0.3)",
+                borderRadius: "var(--radius-md)", color: "#ff2d55", fontSize: 13,
+            }}>
+                ⚠️ {error}
+            </div>
+        )}
+
+        <button
+            id="checkout-submit"
+            type="submit"
+            disabled={loading}
+            className="btn-primary"
+            style={{ width: "100%", marginTop: 24, justifyContent: "center", opacity: loading ? 0.7 : 1 }}
+        >
+            {loading ? "Gerando Pix..." : "⚡ Gerar QR Code Pix"}
+        </button>
+
+        <p style={{ textAlign: "center", marginTop: 14, fontSize: 12, color: "var(--text-muted)" }}>
+            🔒 Pix seguro · sem cartão · cancele quando quiser
+        </p>
+    </form>
+));
+
+CheckoutForm.displayName = "CheckoutForm";
+
+const PixStep = memo(({ pixData, timeLeft, formatTime, email, copied, copyPix, reset }: any) => (
+    <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 12, fontFamily: "monospace", color: "var(--neo-green)", marginBottom: 4 }}>
+            ⏱ Expira em {formatTime(timeLeft)}
+        </div>
+        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Pague com Pix</h2>
+        <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 24 }}>
+            Escaneie o QR Code ou copie o código abaixo.
+        </p>
+
+        {pixData.qrCode && (
+            <div style={{
+                display: "inline-block", padding: 16,
+                background: "#fff", borderRadius: 16, marginBottom: 24,
+            }}>
+                <img
+                    src={`data:image/png;base64,${pixData.qrCode}`}
+                    alt="QR Code Pix"
+                    width={200} height={200}
+                    style={{ display: "block" }}
+                />
+            </div>
+        )}
+
+        {pixData.brCode && (
+            <>
+                <div style={{
+                    background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)",
+                    borderRadius: "var(--radius-md)", padding: "12px 16px",
+                    fontFamily: "monospace", fontSize: 11,
+                    color: "var(--text-secondary)", wordBreak: "break-all",
+                    textAlign: "left", marginBottom: 12, maxHeight: 80, overflow: "hidden",
+                }}>
+                    {pixData.brCode}
+                </div>
+                <button
+                    onClick={copyPix}
+                    className="btn-primary"
+                    style={{ width: "100%", justifyContent: "center" }}
+                >
+                    {copied ? "✓ Copiado!" : "📋 Copiar Pix Copia e Cola"}
+                </button>
+            </>
+        )}
+
+        <div style={{
+            marginTop: 20, padding: "12px 16px",
+            background: "var(--neo-green-dim)", border: "1px solid var(--border-accent)",
+            borderRadius: "var(--radius-md)", fontSize: 13, color: "var(--text-secondary)",
+        }}>
+            📧 Enviamos o QR Code para <strong style={{ color: "var(--neo-green)" }}>{email}</strong>
+        </div>
+
+        <button
+            onClick={reset}
+            style={{
+                marginTop: 16, background: "none", border: "none",
+                color: "var(--text-muted)", fontSize: 13, cursor: "pointer",
+                textDecoration: "underline",
+            }}
+        >
+            Fechar
+        </button>
+    </div>
+));
+
+PixStep.displayName = "PixStep";

@@ -186,8 +186,8 @@ function ToolPageInner({
                     <div style={{
                         width: 72, height: 72, borderRadius: 20,
                         background: `${color}18`, border: `1px solid ${color}30`,
-                        display: "flex", alignItems: "center", justifyCenter: "center",
-                        fontSize: 32, margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center"
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 32, margin: "0 auto 20px"
                     }}>{icon}</div>
                     <h1 style={{ fontSize: "clamp(28px, 4vw, 40px)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 10 }}>
                         {title}
