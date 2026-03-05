@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sendEmail } from "@/lib/mailtrap";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { getClientIp, isSameOriginRequest } from "@/lib/security";
+import {
+  escapeHtml,
+  getClientIp,
+  isSameOriginRequest,
+  normalizeEmail,
+  normalizeText,
+} from "@/lib/security";
 
 const STATUS_RATE_LIMIT = 60;
 const STATUS_WINDOW_MS = 15 * 60 * 1000;
 const FLOWPAY_TIMEOUT_MS = 10_000;
+const EMAIL_DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PAID_STATUSES = new Set([
   "PAID",
   "COMPLETED",
@@ -15,6 +23,21 @@ const PAID_STATUSES = new Set([
   "APPROVED",
   "SETTLED",
 ]);
+const sentPaymentEmails = new Map<string, number>();
+
+function markEmailSentIfFirst(chargeId: string): boolean {
+  const now = Date.now();
+
+  for (const [id, timestamp] of sentPaymentEmails.entries()) {
+    if (now - timestamp > EMAIL_DEDUPE_WINDOW_MS) {
+      sentPaymentEmails.delete(id);
+    }
+  }
+
+  if (sentPaymentEmails.has(chargeId)) return false;
+  sentPaymentEmails.set(chargeId, now);
+  return true;
+}
 
 function sanitizeChargeId(rawValue: string): string | null {
   const value = rawValue.trim();
@@ -174,12 +197,71 @@ export async function GET(
   const status = rawStatus.trim().toUpperCase();
   const paid = PAID_STATUSES.has(status);
   const paidAt = typeof data.paid_at === "string" ? data.paid_at : null;
+  let paymentEmailSent = false;
+
+  // Gatilho 2: confirmação de pagamento (somente quando status pago)
+  if (paid && process.env.MAILTRAP_API_TOKEN) {
+    const notifyEmail = normalizeEmail(
+      req.nextUrl.searchParams.get("notifyEmail"),
+    );
+    const notifyName =
+      normalizeText(req.nextUrl.searchParams.get("notifyName"), 80) ||
+      "Cliente";
+    const notifyAmount =
+      normalizeText(req.nextUrl.searchParams.get("notifyAmount"), 40) ||
+      "pagamento confirmado";
+
+    if (notifyEmail && markEmailSentIfFirst(chargeId)) {
+      const templateUuid = process.env.MAILTRAP_PAYMENT_SUCCESS_TEMPLATE_ID;
+      try {
+        if (templateUuid) {
+          await sendEmail({
+            to: notifyEmail,
+            templateUuid,
+            templateVariables: {
+              name: notifyName,
+              amount: notifyAmount,
+              transaction_id: chargeId,
+            },
+          });
+        } else {
+          const safeName = escapeHtml(notifyName);
+          const safeAmount = escapeHtml(notifyAmount);
+          const safeChargeId = escapeHtml(chargeId);
+          await sendEmail({
+            to: notifyEmail,
+            subject: `Pagamento confirmado | NΞØ CONVΞRT`,
+            html: `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#050508;font-family:'Segoe UI',system-ui,sans-serif;color:#e8e8f0;">
+  <div style="max-width:560px;margin:0 auto;padding:40px 24px;">
+    <h1 style="font-size:28px;font-weight:800;margin:0 0 10px;">Pagamento confirmado</h1>
+    <p style="color:rgba(232,232,240,0.65);line-height:1.7;margin:0 0 20px;">Olá, ${safeName}. Confirmamos o pagamento de ${safeAmount}.</p>
+    <div style="background:#13131a;border:1px solid rgba(0,255,157,0.2);border-radius:16px;padding:20px;">
+      <p style="margin:0 0 8px;font-size:13px;color:rgba(232,232,240,0.5);">Transação</p>
+      <p style="margin:0;font-size:13px;color:#00ff9d;word-break:break-all;font-family:monospace;">${safeChargeId}</p>
+    </div>
+    <p style="margin:20px 0 0;font-size:12px;color:rgba(232,232,240,0.4);">Seu download já está liberado no fluxo atual.</p>
+  </div>
+</body>
+</html>`,
+          });
+        }
+        paymentEmailSent = true;
+      } catch (error) {
+        console.error("Falha ao enviar confirmação de pagamento:", error);
+      }
+    }
+  }
 
   const response = NextResponse.json({
     success: true,
     status,
     paid,
     paidAt,
+    paymentEmailSent,
   });
   response.headers.set("Cache-Control", "no-store");
   return response;

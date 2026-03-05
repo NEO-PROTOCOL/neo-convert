@@ -3,6 +3,7 @@
 ## Visão Geral
 
 O NeoConvert usa a infraestrutura central de pagamentos da stack NEO:
+
 - **FlowPay API Edge** (`https://api.flowpay.cash`)
 - O provedor Pix (Woovi/OpenPix) fica encapsulado na FlowPay API
 - O NeoConvert não cria webhook Woovi próprio
@@ -11,11 +12,12 @@ O NeoConvert usa a infraestrutura central de pagamentos da stack NEO:
 
 ## Planos e Preços
 
-| ID | Nome | Valor (centavos) | Exibição |
-|----|------|-----------------|----------|
-| `starter` | NeoConvert Starter | `750` | R$ 7,50/mês |
-| `pro` | NeoConvert Pro | `2900` | R$ 29/mês |
-| `business` | NeoConvert Business | `7900` | R$ 79/mês |
+| ID                  | Nome                    | Valor (centavos) | Exibição            |
+| ------------------- | ----------------------- | ---------------- | ------------------- |
+| `starter`           | NeoConvert Starter      | `750`            | R$ 7,50/mês         |
+| `pro`               | NeoConvert Pro          | `2900`           | R$ 29/mês           |
+| `business`          | NeoConvert Business     | `7900`           | R$ 79/mês           |
+| `compress_pdf_unit` | Compressão PDF Unitária | `750`            | R$ 7,50 por arquivo |
 
 > Definidos em `app/api/checkout/route.ts` no objeto `PLANS`.
 
@@ -24,11 +26,13 @@ O NeoConvert usa a infraestrutura central de pagamentos da stack NEO:
 ## FlowPay API (contrato canônico)
 
 ### Endpoint usado
+
 ```
 POST https://api.flowpay.cash/api/create-charge
 ```
 
 ### Payload enviado
+
 ```json
 {
   "wallet": "neo-convert",
@@ -41,7 +45,17 @@ POST https://api.flowpay.cash/api/create-charge
 }
 ```
 
+### Mapeamento de `product_id`
+
+- Por padrão, o NeoConvert envia `starter`, `pro`, `business` ou `compress_pdf_unit`.
+- Se necessário, você pode mapear por ambiente para IDs reais da FlowPay (por exemplo `btn_...`) usando:
+  - `FLOWPAY_PRODUCT_ID_STARTER`
+  - `FLOWPAY_PRODUCT_ID_PRO`
+  - `FLOWPAY_PRODUCT_ID_BUSINESS`
+  - `FLOWPAY_PRODUCT_ID_COMPRESS_PDF_UNIT`
+
 ### Resposta relevante
+
 ```json
 {
   "success": true,
@@ -58,13 +72,21 @@ POST https://api.flowpay.cash/api/create-charge
 
 ## Email transacional (Mailtrap)
 
-### Template de confirmação
+### Gatilhos de e-mail
+
+- `checkout criado` (`POST /api/checkout`): envia e-mail de cobrança pendente com QR/Pix.
+- `pagamento confirmado` (`GET /api/checkout/status/:chargeId` quando `paid=true`): envia confirmação final.
+
+### Conteúdo padrão da cobrança pendente
+
 Enviado automaticamente após criação da cobrança com:
+
 - QR Code em base64 (se disponível)
 - Pix Copia e Cola
 - ID da cobrança para referência
 
 ### From address
+
 `NeoConvert <no-reply@neo-convert.com>`
 
 ---
