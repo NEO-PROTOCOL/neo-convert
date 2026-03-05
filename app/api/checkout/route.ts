@@ -3,17 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/mailtrap";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import {
-    escapeHtml,
-    getClientIp,
-    isSameOriginRequest,
-    normalizeEmail,
-    normalizeText,
+  escapeHtml,
+  getClientIp,
+  isSameOriginRequest,
+  normalizeEmail,
+  normalizeText,
 } from "@/lib/security";
 
 const PLANS: Record<string, { name: string; value: number; label: string }> = {
-    starter: { name: "NeoConvert Starter", value: 750, label: "R$ 7,50/mês" },
-    pro: { name: "NeoConvert Pro", value: 2900, label: "R$ 29/mês" },
-    business: { name: "NeoConvert Business", value: 7900, label: "R$ 79/mês" },
+  starter: { name: "NeoConvert Starter", value: 750, label: "R$ 7,50/mês" },
+  pro: { name: "NeoConvert Pro", value: 2900, label: "R$ 29/mês" },
+  business: { name: "NeoConvert Business", value: 7900, label: "R$ 79/mês" },
 };
 
 const CHECKOUT_RATE_LIMIT = 8;
@@ -21,235 +21,267 @@ const CHECKOUT_WINDOW_MS = 15 * 60 * 1000;
 const FLOWPAY_TIMEOUT_MS = 12_000;
 
 function isKnownPlan(planId: string): planId is keyof typeof PLANS {
-    return Object.prototype.hasOwnProperty.call(PLANS, planId);
+  return Object.prototype.hasOwnProperty.call(PLANS, planId);
 }
 
 function asString(value: unknown): string | undefined {
-    if (typeof value !== "string") return undefined;
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function resolveFlowpayCreateChargeUrl(rawValue: string | undefined): string | null {
-    const fallback = "https://api.flowpay.cash";
+function resolveFlowpayCreateChargeUrl(
+  rawValue: string | undefined,
+): string | null {
+  const fallback = "https://api.flowpay.cash";
 
-    try {
-        const url = new URL(rawValue || fallback);
-        if (url.hostname === "flowpay.cash" || url.hostname === "www.flowpay.cash") {
-            url.hostname = "api.flowpay.cash";
-        }
-        const path = url.pathname.replace(/\/+$/, "");
-
-        if (path === "" || path === "/") {
-            url.pathname = "/api/create-charge";
-        } else if (path === "/api") {
-            url.pathname = "/api/create-charge";
-        } else if (path.endsWith("/api/create-charge")) {
-            url.pathname = path;
-        } else {
-            url.pathname = `${path}/api/create-charge`;
-        }
-
-        url.search = "";
-        url.hash = "";
-        return url.toString();
-    } catch {
-        return null;
+  try {
+    const url = new URL(rawValue || fallback);
+    if (
+      url.hostname === "flowpay.cash" ||
+      url.hostname === "www.flowpay.cash"
+    ) {
+      url.hostname = "api.flowpay.cash";
     }
+    const path = url.pathname.replace(/\/+$/, "");
+
+    if (path === "" || path === "/") {
+      url.pathname = "/api/create-charge";
+    } else if (path === "/api") {
+      url.pathname = "/api/create-charge";
+    } else if (path.endsWith("/api/create-charge")) {
+      url.pathname = path;
+    } else {
+      url.pathname = `${path}/api/create-charge`;
+    }
+
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
-async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    try {
-        return await fetch(input, {
-            ...init,
-            signal: controller.signal,
-            cache: "no-store",
-        });
-    } finally {
-        clearTimeout(timeout);
-    }
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+      cache: "no-store",
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function POST(req: NextRequest) {
-    if (!isSameOriginRequest(req)) {
-        return NextResponse.json({ error: "Forbidden origin" }, { status: 403 });
+  if (!isSameOriginRequest(req)) {
+    return NextResponse.json({ error: "Forbidden origin" }, { status: 403 });
+  }
+
+  const ip = getClientIp(req);
+  const rateLimit = enforceRateLimit(
+    `checkout:${ip}`,
+    CHECKOUT_RATE_LIMIT,
+    CHECKOUT_WINDOW_MS,
+  );
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Muitas tentativas. Aguarde alguns minutos." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
+    );
+  }
+
+  try {
+    const contentType = req.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      return NextResponse.json(
+        { error: "Content-Type inválido. Use application/json." },
+        { status: 415 },
+      );
     }
 
-    const ip = getClientIp(req);
-    const rateLimit = enforceRateLimit(`checkout:${ip}`, CHECKOUT_RATE_LIMIT, CHECKOUT_WINDOW_MS);
-    if (!rateLimit.allowed) {
-        return NextResponse.json(
-            { error: "Muitas tentativas. Aguarde alguns minutos." },
-            { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
-        );
-    }
-
+    let payload: { planId?: unknown; name?: unknown; email?: unknown };
     try {
-        const contentType = req.headers.get("content-type") ?? "";
-        if (!contentType.includes("application/json")) {
-            return NextResponse.json(
-                { error: "Content-Type inválido. Use application/json." },
-                { status: 415 }
-            );
-        }
+      payload = (await req.json()) as {
+        planId?: unknown;
+        name?: unknown;
+        email?: unknown;
+      };
+    } catch {
+      return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+    }
+    const planId =
+      typeof payload.planId === "string" ? payload.planId.trim() : "";
+    const name = normalizeText(payload.name, 80);
+    const email = normalizeEmail(payload.email);
 
-        let payload: { planId?: unknown; name?: unknown; email?: unknown };
-        try {
-            payload = await req.json() as { planId?: unknown; name?: unknown; email?: unknown };
-        } catch {
-            return NextResponse.json(
-                { error: "JSON inválido." },
-                { status: 400 }
-            );
-        }
-        const planId = typeof payload.planId === "string" ? payload.planId.trim() : "";
-        const name = normalizeText(payload.name, 80);
-        const email = normalizeEmail(payload.email);
+    if (!planId || !name || !email) {
+      return NextResponse.json(
+        { error: "planId, name e email são obrigatórios" },
+        { status: 400 },
+      );
+    }
 
-        if (!planId || !name || !email) {
-            return NextResponse.json(
-                { error: "planId, name e email são obrigatórios" },
-                { status: 400 }
-            );
-        }
+    if (!isKnownPlan(planId)) {
+      return NextResponse.json({ error: "Plano inválido" }, { status: 400 });
+    }
+    const plan = PLANS[planId];
 
-        if (!isKnownPlan(planId)) {
-            return NextResponse.json({ error: "Plano inválido" }, { status: 400 });
-        }
-        const plan = PLANS[planId];
+    const flowpayApiKey =
+      process.env.FLOWPAY_INTERNAL_API_KEY ||
+      process.env.FLOWPAY_API_KEY ||
+      process.env.WOOVI_API_KEY;
+    if (!flowpayApiKey) {
+      console.error(
+        "FLOWPAY_INTERNAL_API_KEY/FLOWPAY_API_KEY/WOOVI_API_KEY não configurado",
+      );
+      return NextResponse.json(
+        { error: "Serviço de pagamento indisponível no momento." },
+        { status: 503 },
+      );
+    }
 
-        const flowpayApiKey = process.env.FLOWPAY_INTERNAL_API_KEY || process.env.FLOWPAY_API_KEY;
-        if (!flowpayApiKey) {
-            console.error("FLOWPAY_INTERNAL_API_KEY/FLOWPAY_API_KEY não configurado");
-            return NextResponse.json(
-                { error: "Serviço de pagamento indisponível no momento." },
-                { status: 503 }
-            );
-        }
+    const flowpayChargeUrl = resolveFlowpayCreateChargeUrl(
+      process.env.FLOWPAY_API_URL,
+    );
+    if (!flowpayChargeUrl) {
+      console.error("FLOWPAY_API_URL inválido");
+      return NextResponse.json(
+        { error: "Configuração de pagamento inválida." },
+        { status: 500 },
+      );
+    }
 
-        const flowpayChargeUrl = resolveFlowpayCreateChargeUrl(process.env.FLOWPAY_API_URL);
-        if (!flowpayChargeUrl) {
-            console.error("FLOWPAY_API_URL inválido");
-            return NextResponse.json(
-                { error: "Configuração de pagamento inválida." },
-                { status: 500 }
-            );
-        }
+    const correlationID = `neoconvert-${randomUUID()}`;
+    const amountBrl = Number((plan.value / 100).toFixed(2));
 
-        const correlationID = `neoconvert-${randomUUID()}`;
-        const amountBrl = Number((plan.value / 100).toFixed(2));
+    let flowpayRes: Response;
+    try {
+      flowpayRes = await fetchWithTimeout(
+        flowpayChargeUrl,
+        {
+          method: "POST",
+          headers: {
+            "x-api-key": flowpayApiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            wallet: "neo-convert",
+            valor: amountBrl,
+            moeda: "BRL",
+            id_transacao: correlationID,
+            product_id: planId,
+            customer_name: name,
+            customer_email: email,
+          }),
+        },
+        FLOWPAY_TIMEOUT_MS,
+      );
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return NextResponse.json(
+          { error: "Timeout ao criar cobrança. Tente novamente." },
+          { status: 504 },
+        );
+      }
+      console.error("Erro de conexão com FlowPay API:", error);
+      return NextResponse.json(
+        { error: "Falha ao conectar no provedor de pagamento." },
+        { status: 502 },
+      );
+    }
 
-        let flowpayRes: Response;
-        try {
-            flowpayRes = await fetchWithTimeout(
-                flowpayChargeUrl,
-                {
-                    method: "POST",
-                    headers: {
-                        "x-api-key": flowpayApiKey,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        wallet: "neo-convert",
-                        valor: amountBrl,
-                        moeda: "BRL",
-                        id_transacao: correlationID,
-                        product_id: planId,
-                        customer_name: name,
-                        customer_email: email,
-                    }),
-                },
-                FLOWPAY_TIMEOUT_MS
-            );
-        } catch (error) {
-            if (error instanceof Error && error.name === "AbortError") {
-                return NextResponse.json(
-                    { error: "Timeout ao criar cobrança. Tente novamente." },
-                    { status: 504 }
-                );
-            }
-            console.error("Erro de conexão com FlowPay API:", error);
-            return NextResponse.json(
-                { error: "Falha ao conectar no provedor de pagamento." },
-                { status: 502 }
-            );
-        }
+    if (!flowpayRes.ok) {
+      const err = (await flowpayRes.text()).slice(0, 500);
+      console.error("FlowPay API error:", flowpayRes.status, err);
+      if (flowpayRes.status === 401 || flowpayRes.status === 403) {
+        return NextResponse.json(
+          {
+            error:
+              "Integração de pagamento não autorizada. Verifique a chave interna da FlowPay.",
+          },
+          { status: 503 },
+        );
+      }
+      return NextResponse.json(
+        { error: "Erro ao criar cobrança Pix. Tente novamente." },
+        { status: 502 },
+      );
+    }
 
-        if (!flowpayRes.ok) {
-            const err = (await flowpayRes.text()).slice(0, 500);
-            console.error("FlowPay API error:", flowpayRes.status, err);
-            if (flowpayRes.status === 401 || flowpayRes.status === 403) {
-                return NextResponse.json(
-                    { error: "Integração de pagamento não autorizada. Verifique a chave interna da FlowPay." },
-                    { status: 503 }
-                );
-            }
-            return NextResponse.json(
-                { error: "Erro ao criar cobrança Pix. Tente novamente." },
-                { status: 502 }
-            );
-        }
+    const flowpayData = (await flowpayRes.json()) as {
+      pix_data?: {
+        qr_code?: unknown;
+        br_code?: unknown;
+        correlation_id?: unknown;
+        expires_at?: unknown;
+      };
+      id_transacao?: unknown;
+    };
+    const pix = flowpayData.pix_data;
 
-        const flowpayData = await flowpayRes.json() as {
-            pix_data?: {
-                qr_code?: unknown;
-                br_code?: unknown;
-                correlation_id?: unknown;
-                expires_at?: unknown;
-            };
-            id_transacao?: unknown;
-        };
-        const pix = flowpayData.pix_data;
+    if (!pix || typeof pix !== "object") {
+      console.error("Resposta da FlowPay API sem objeto pix_data");
+      return NextResponse.json(
+        { error: "Resposta inválida do provedor de pagamento." },
+        { status: 502 },
+      );
+    }
 
-        if (!pix || typeof pix !== "object") {
-            console.error("Resposta da FlowPay API sem objeto pix_data");
-            return NextResponse.json(
-                { error: "Resposta inválida do provedor de pagamento." },
-                { status: 502 }
-            );
-        }
+    const brCode = asString(pix.br_code);
+    const qrCode = asString(pix.qr_code);
+    const expiresAt = asString(pix.expires_at);
+    const effectiveCorrelationId =
+      asString(pix.correlation_id) ||
+      asString(flowpayData.id_transacao) ||
+      correlationID;
 
-        const brCode = asString(pix.br_code);
-        const qrCode = asString(pix.qr_code);
-        const expiresAt = asString(pix.expires_at);
-        const effectiveCorrelationId =
-            asString(pix.correlation_id) ||
-            asString(flowpayData.id_transacao) ||
-            correlationID;
+    if (!brCode && !qrCode) {
+      console.error("FlowPay API sem dados Pix utilizáveis");
+      return NextResponse.json(
+        { error: "Cobrança criada sem QR Code. Tente novamente." },
+        { status: 502 },
+      );
+    }
 
-        if (!brCode && !qrCode) {
-            console.error("FlowPay API sem dados Pix utilizáveis");
-            return NextResponse.json(
-                { error: "Cobrança criada sem QR Code. Tente novamente." },
-                { status: 502 }
-            );
-        }
+    // Enviar email de confirmação via Mailtrap
+    if (process.env.MAILTRAP_API_TOKEN) {
+      const safeName = escapeHtml(name);
+      const safePlanName = escapeHtml(plan.name);
+      const safePlanLabel = escapeHtml(plan.label);
+      const safeCorrelationID = escapeHtml(effectiveCorrelationId);
+      const safePixCode = brCode ? escapeHtml(brCode) : "";
+      const qrImage = qrCode
+        ? `<img src="data:image/png;base64,${qrCode}" width="200" height="200" alt="QR Code Pix" style="border-radius:12px;" />`
+        : "";
 
-        // Enviar email de confirmação via Mailtrap
-        if (process.env.MAILTRAP_API_TOKEN) {
-            const safeName = escapeHtml(name);
-            const safePlanName = escapeHtml(plan.name);
-            const safePlanLabel = escapeHtml(plan.label);
-            const safeCorrelationID = escapeHtml(effectiveCorrelationId);
-            const safePixCode = brCode ? escapeHtml(brCode) : "";
-            const qrImage = qrCode
-                ? `<img src="data:image/png;base64,${qrCode}" width="200" height="200" alt="QR Code Pix" style="border-radius:12px;" />`
-                : "";
+      try {
+        // 1. Enviar o email de Boas-vindas (Template Novo)
+        // Isso valida se as variáveis de Template UUID estão funcionando
+        const { EmailService } = await import("@/lib/email-service");
+        await EmailService.sendWelcome(
+          email,
+          name,
+          effectiveCorrelationId.split("-").pop() || "CORE",
+        );
 
-            try {
-                // 1. Enviar o email de Boas-vindas (Template Novo)
-                // Isso valida se as variáveis de Template UUID estão funcionando
-                const { EmailService } = await import("@/lib/email-service");
-                await EmailService.sendWelcome(email, name, effectiveCorrelationId.split('-').pop() || "CORE");
-
-                // 2. Enviar as instruções do Pix (HTML Manual por enquanto)
-                await sendEmail({
-                    to: email,
-                    subject: `Seu Pix para ${plan.name} | NΞØ CONVΞRT`,
-                    html: `
+        // 2. Enviar as instruções do Pix (HTML Manual por enquanto)
+        await sendEmail({
+          to: email,
+          subject: `Seu Pix para ${plan.name} | NΞØ CONVΞRT`,
+          html: `
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -282,26 +314,26 @@ export async function POST(req: NextRequest) {
   </div>
 </body>
 </html>`,
-                });
-            } catch (error) {
-                console.error("Falha ao enviar e-mails de checkout:", error);
-            }
-        }
-
-        const response = NextResponse.json({
-            success: true,
-            correlationID: effectiveCorrelationId,
-            brCode,
-            qrCode,
-            expiresAt,
         });
-        response.headers.set("Cache-Control", "no-store");
-        return response;
-    } catch (error) {
-        console.error("Checkout error:", error);
-        return NextResponse.json(
-            { error: "Erro interno do servidor" },
-            { status: 500 }
-        );
+      } catch (error) {
+        console.error("Falha ao enviar e-mails de checkout:", error);
+      }
     }
+
+    const response = NextResponse.json({
+      success: true,
+      correlationID: effectiveCorrelationId,
+      brCode,
+      qrCode,
+      expiresAt,
+    });
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  } catch (error) {
+    console.error("Checkout error:", error);
+    return NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 },
+    );
+  }
 }
