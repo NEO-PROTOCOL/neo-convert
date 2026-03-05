@@ -39,7 +39,16 @@ export async function sendEmail({
         name: fromName || process.env.MAILTRAP_FROM_NAME || "NΞØ CONVΞRT",
     };
 
-    const payload: any = {
+    interface MailtrapPayload {
+        from: { email: string; name: string };
+        to: { email: string }[];
+        subject?: string;
+        html?: string;
+        template_uuid?: string;
+        template_variables?: Record<string, string | number | boolean>;
+    }
+
+    const payload: MailtrapPayload = {
         from,
         to: [{ email: toEmail }],
     };

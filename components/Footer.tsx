@@ -1,4 +1,29 @@
+"use client";
+import Link from "next/link";
+
 export default function Footer() {
+  const TOOL_LINKS = [
+    { label: "Comprimir PDF", href: "/tools/compress-pdf" },
+    { label: "Mesclar PDF", href: "/tools/merge-pdf" },
+    { label: "Dividir PDF", href: "/tools/split-pdf" },
+    { label: "Assinar PDF", href: "/tools/sign-pdf" },
+    { label: "PDF para Word", href: "/tools/pdf-to-word" },
+  ];
+
+  const COMPANY_LINKS = [
+    { label: "Sobre nós", href: "/sobre" },
+    { label: "Blog", href: "/blog" },
+    { label: "Preços", href: "/#precos" },
+    { label: "Contato", href: "/contato" },
+  ];
+
+  const LEGAL_LINKS = [
+    { label: "Privacidade", href: "/privacidade" },
+    { label: "Termos", href: "/termos" },
+    { label: "Cookies", href: "/cookies" },
+    { label: "Segurança", href: "/seguranca" },
+  ];
+
   return (
     <footer style={{
       borderTop: "1px solid var(--border-subtle)",
@@ -29,28 +54,50 @@ export default function Footer() {
             </p>
           </div>
 
-          {[
-            { title: "Ferramentas", links: ["Comprimir PDF", "Mesclar PDF", "Dividir PDF", "Assinar PDF", "PDF para Word"] },
-            { title: "Empresa", links: ["Sobre nós", "Preços", "Contato"] },
-            { title: "Legal", links: ["Privacidade", "Termos", "Cookies", "Segurança"] },
-          ].map((col) => (
-            <div key={col.title}>
-              <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: "var(--text-primary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                {col.title}
-              </h4>
-              <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
-                {col.links.map((link) => (
-                  <li key={link}>
-                    <a href="#" style={{ color: "var(--text-secondary)", fontSize: 13, textDecoration: "none", transition: "color 150ms" }}
-                      onMouseEnter={e => (e.currentTarget.style.color = "var(--text-primary)")}
-                      onMouseLeave={e => (e.currentTarget.style.color = "var(--text-secondary)")}>
-                      {link}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          <div>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: "var(--text-primary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Ferramentas
+            </h4>
+            <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+              {TOOL_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} style={{ color: "var(--text-secondary)", fontSize: 13, textDecoration: "none", transition: "color 150ms" }}>
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: "var(--text-primary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Empresa
+            </h4>
+            <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+              {COMPANY_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} style={{ color: "var(--text-secondary)", fontSize: 13, textDecoration: "none", transition: "color 150ms" }}>
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: "var(--text-primary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Legal
+            </h4>
+            <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+              {LEGAL_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} style={{ color: "var(--text-secondary)", fontSize: 13, textDecoration: "none", transition: "color 150ms" }}>
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         <div style={{

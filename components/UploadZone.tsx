@@ -51,8 +51,9 @@ export default function UploadZone() {
   }, []);
 
   useEffect(() => {
+    const currentTimeout = timeoutRef.current;
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (currentTimeout) clearTimeout(currentTimeout);
     };
   }, []);
 

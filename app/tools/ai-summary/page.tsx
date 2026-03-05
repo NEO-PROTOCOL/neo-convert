@@ -1,14 +1,15 @@
 "use client";
 import ComingSoon from "@/components/ComingSoon";
+import { use } from "react";
 
 export default function AiSummaryPage() {
     return (
         <ComingSoon
             icon="🤖"
             title="Resumir com IA"
-            description="Em breve: gere resumos executivos de PDFs longos com foco em insights acionáveis."
+            description="Em breve: utilize inteligência artificial para ler e resumir pontos-chave de documentos PDF extensos em segundos."
             color="#ff6b35"
-            availableIn="Módulo IA"
+            availableIn="Plano Pro"
         />
     );
 }

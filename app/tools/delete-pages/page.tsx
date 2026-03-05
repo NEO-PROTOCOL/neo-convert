@@ -5,8 +5,8 @@ export default function DeletePagesPage() {
     return (
         <ComingSoon
             icon="🗑️"
-            title="Deletar páginas"
-            description="Em breve: selecione e remova páginas específicas de PDFs sem afetar o restante do arquivo."
+            title="Deletar Páginas"
+            description="Em breve: selecione e remova páginas indesejadas do seu PDF com facilidade."
             color="#a87aff"
         />
     );
