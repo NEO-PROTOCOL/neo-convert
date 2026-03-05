@@ -3,7 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactCompiler: false,
   turbopack: {
-    root: "/Users/nettomello/neomello/neo-convert",
+    // Keep Turbopack root portable after repo moves/renames.
+    root: process.cwd(),
   },
   async headers() {
     return [

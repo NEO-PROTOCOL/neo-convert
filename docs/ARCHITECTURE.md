@@ -83,12 +83,13 @@ User → Pricing.tsx
     → POST /api/checkout
       → FlowPay API → cria charge Pix
       → Mailtrap → envia email QR Code
-    → retorna { qrCodeImage, brCode, correlationId }
+    → retorna { qrCode, brCode, correlationID }
   → exibe QR Code + Pix Copia e Cola
+  → polling GET /api/checkout/status/:chargeId
 
 [Pix pago]
   → webhook central na FlowPay API
-  → NeoConvert consulta status via FlowPay quando necessário
+  → NeoConvert detecta status pago via proxy local e confirma assinatura no modal
 ```
 
 ---
@@ -98,6 +99,7 @@ User → Pricing.tsx
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | `POST` | `/api/checkout` | Cria cobrança Pix via FlowPay API |
+| `GET` | `/api/checkout/status/[chargeId]` | Consulta status da cobrança via proxy seguro para FlowPay API |
 | `POST` | `/api/webhook/pix` | Legado (não é o fluxo principal) |
 | `GET` | `/api/subscription/[id]` | (TODO) Status da assinatura |
 | `POST` | `/api/upload-to-cloud` | Upload seguro e temporário para o Vercel Blob |

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 interface CheckoutModalProps {
     isOpen: boolean;
@@ -31,6 +31,9 @@ export default function CheckoutModal({
     } | null>(null);
     const [copied, setCopied] = useState(false);
     const [timeLeft, setTimeLeft] = useState(3600);
+    const [paymentStatus, setPaymentStatus] = useState("CREATED");
+    const [paidAt, setPaidAt] = useState<string | null>(null);
+    const [checkingStatus, setCheckingStatus] = useState(false);
     const submitAbortRef = useRef<AbortController | null>(null);
     const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -62,6 +65,63 @@ export default function CheckoutModal({
 
     const formatTime = (s: number) =>
         `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+    const checkPaymentStatus = useCallback(async () => {
+        const chargeId = pixData?.correlationID?.trim();
+        if (!chargeId) return false;
+
+        setCheckingStatus(true);
+        try {
+            const res = await fetch(`/api/checkout/status/${encodeURIComponent(chargeId)}`, {
+                method: "GET",
+                cache: "no-store",
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) return false;
+
+            const status = typeof data.status === "string" ? data.status.toUpperCase() : "CREATED";
+            const paid = Boolean(data.paid);
+            const paidAtValue = typeof data.paidAt === "string" ? data.paidAt : null;
+
+            setPaymentStatus(status);
+            setPaidAt(paidAtValue);
+
+            if (paid) {
+                setStep("done");
+                return true;
+            }
+
+            return false;
+        } catch {
+            return false;
+        } finally {
+            setCheckingStatus(false);
+        }
+    }, [pixData?.correlationID]);
+
+    useEffect(() => {
+        if (step !== "pix" || !pixData?.correlationID) return;
+
+        let active = true;
+        let interval: ReturnType<typeof setInterval> | null = null;
+
+        const poll = async () => {
+            if (!active) return;
+            const paid = await checkPaymentStatus();
+            if (paid && interval) {
+                clearInterval(interval);
+                interval = null;
+            }
+        };
+
+        poll();
+        interval = setInterval(poll, 7000);
+
+        return () => {
+            active = false;
+            if (interval) clearInterval(interval);
+        };
+    }, [step, pixData?.correlationID, checkPaymentStatus]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -107,6 +167,8 @@ export default function CheckoutModal({
             }
 
             setPixData(data);
+            setPaymentStatus("CREATED");
+            setPaidAt(null);
             setStep("pix");
             if (typeof data.expiresAt === "string") {
                 const expiresAt = new Date(data.expiresAt).getTime();
@@ -154,6 +216,9 @@ export default function CheckoutModal({
         setError("");
         setPixData(null);
         setCopied(false);
+        setPaymentStatus("CREATED");
+        setPaidAt(null);
+        setCheckingStatus(false);
         setTimeLeft(3600);
         onClose();
     };
@@ -229,6 +294,19 @@ export default function CheckoutModal({
                         email={email}
                         copied={copied}
                         copyPix={copyPix}
+                        paymentStatus={paymentStatus}
+                        checkingStatus={checkingStatus}
+                        checkPaymentStatus={checkPaymentStatus}
+                        reset={reset}
+                    />
+                )}
+
+                {step === "done" && (
+                    <DoneStep
+                        email={email}
+                        paymentStatus={paymentStatus}
+                        paidAt={paidAt}
+                        correlationID={pixData?.correlationID || ""}
                         reset={reset}
                     />
                 )}
@@ -241,8 +319,6 @@ export default function CheckoutModal({
         </div>
     );
 }
-
-import { memo } from "react";
 
 const CheckoutForm = memo(({ name, setName, email, setEmail, loading, error, onSubmit }: any) => (
     <form onSubmit={onSubmit}>
@@ -325,7 +401,7 @@ const CheckoutForm = memo(({ name, setName, email, setEmail, loading, error, onS
 
 CheckoutForm.displayName = "CheckoutForm";
 
-const PixStep = memo(({ pixData, timeLeft, formatTime, email, copied, copyPix, reset }: any) => (
+const PixStep = memo(({ pixData, timeLeft, formatTime, email, copied, copyPix, paymentStatus, checkingStatus, checkPaymentStatus, reset }: any) => (
     <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: 12, fontFamily: "monospace", color: "var(--neo-green)", marginBottom: 4 }}>
             ⏱ Expira em {formatTime(timeLeft)}
@@ -334,6 +410,14 @@ const PixStep = memo(({ pixData, timeLeft, formatTime, email, copied, copyPix, r
         <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 24 }}>
             Escaneie o QR Code ou copie o código abaixo.
         </p>
+
+        <div style={{
+            marginBottom: 14,
+            fontSize: 12,
+            color: "var(--text-muted)",
+        }}>
+            Status FlowPay: <strong style={{ color: "var(--neo-green)" }}>{paymentStatus}</strong>
+        </div>
 
         {pixData.qrCode && (
             <div style={{
@@ -367,6 +451,22 @@ const PixStep = memo(({ pixData, timeLeft, formatTime, email, copied, copyPix, r
                 >
                     {copied ? "✓ Copiado!" : "📋 Copiar Pix Copia e Cola"}
                 </button>
+                <button
+                    onClick={checkPaymentStatus}
+                    style={{
+                        width: "100%",
+                        marginTop: 10,
+                        background: "var(--bg-elevated)",
+                        border: "1px solid var(--border-default)",
+                        borderRadius: "var(--radius-md)",
+                        color: "var(--text-primary)",
+                        fontSize: 13,
+                        padding: "10px 12px",
+                        cursor: "pointer",
+                    }}
+                >
+                    {checkingStatus ? "Verificando..." : "Já paguei · Verificar agora"}
+                </button>
             </>
         )}
 
@@ -392,3 +492,34 @@ const PixStep = memo(({ pixData, timeLeft, formatTime, email, copied, copyPix, r
 ));
 
 PixStep.displayName = "PixStep";
+
+const DoneStep = memo(({ email, paymentStatus, paidAt, correlationID, reset }: any) => (
+    <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 6 }}>✓</div>
+        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Pagamento confirmado</h2>
+        <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 18 }}>
+            Assinatura liberada para <strong style={{ color: "var(--neo-green)" }}>{email}</strong>.
+        </p>
+
+        <div style={{
+            textAlign: "left",
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--radius-md)",
+            padding: "12px 14px",
+            fontSize: 12,
+            color: "var(--text-secondary)",
+            marginBottom: 16,
+        }}>
+            <div><strong>Status:</strong> {paymentStatus}</div>
+            {paidAt ? <div><strong>Pago em:</strong> {new Date(paidAt).toLocaleString("pt-BR")}</div> : null}
+            {correlationID ? <div style={{ wordBreak: "break-all" }}><strong>ID:</strong> {correlationID}</div> : null}
+        </div>
+
+        <button onClick={reset} className="btn-primary" style={{ width: "100%", justifyContent: "center" }}>
+            Fechar
+        </button>
+    </div>
+));
+
+DoneStep.displayName = "DoneStep";

@@ -73,7 +73,8 @@ Enviado automaticamente após criação da cobrança com:
 
 - O webhook de pagamento fica centralizado na FlowPay API.
 - Não criar novo webhook Woovi no `neo-convert`.
-- Para UX em tempo real no front, usar polling via `GET /api/charge/:id` da FlowPay API.
+- Para UX em tempo real no front, usar polling via `GET /api/checkout/status/:chargeId` no NeoConvert.
+- Essa rota proxy consulta `GET /api/charge/:id` na FlowPay API com `x-api-key` no backend (sem expor segredo no cliente).
 
 ---
 
@@ -88,3 +89,4 @@ Ver [ENV.md](./ENV.md)
 1. Configurar `FLOWPAY_API_URL` e `FLOWPAY_INTERNAL_API_KEY` no ambiente
 2. Chamar o checkout no front (`/api/checkout`)
 3. Validar resposta com `brCode`, `qrCode` e `correlationID`
+4. Simular confirmação e validar transição automática para status pago no modal via `/api/checkout/status/:chargeId`
