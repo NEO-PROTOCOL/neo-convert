@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { getClientIp, isSameOriginRequest, safeFilename } from '@/lib/security';
 
+export const maxDuration = 60; // 60 segundos de tolerância para uploads grandes
+export const dynamic = 'force-dynamic';
+
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const UPLOAD_RATE_LIMIT = 20;
 const UPLOAD_WINDOW_MS = 10 * 60 * 1000;
