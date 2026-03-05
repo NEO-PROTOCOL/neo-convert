@@ -43,7 +43,7 @@ export default function MergePDFPage() {
       tip="Selecione os arquivos na ordem em que quer que apareçam no PDF final."
       payment={{
         enabled: true,
-        planId: "compress_pdf_unit",
+        planId: "starter",
         planName: "Mesclagem PDF Unitária",
         planPrice: "R$ 7,50",
         ttlMs: 60 * 60 * 1000,

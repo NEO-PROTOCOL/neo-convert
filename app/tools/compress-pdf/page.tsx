@@ -57,7 +57,7 @@ export default function CompressPDFPage() {
       tip="Funciona melhor em PDFs com muitos metadados e objetos redundantes. Para PDFs com imagens grandes, a compressão pode variar."
       payment={{
         enabled: true,
-        planId: "compress_pdf_unit",
+        planId: "starter",
         planName: "Compressão PDF Unitária",
         planPrice: "R$ 7,50",
         ttlMs: 60 * 60 * 1000,

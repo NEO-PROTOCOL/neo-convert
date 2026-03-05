@@ -12,14 +12,27 @@ O NeoConvert usa a infraestrutura central de pagamentos da stack NEO:
 
 ## Planos e Preços
 
-| ID                  | Nome                    | Valor (centavos) | Exibição            |
-| ------------------- | ----------------------- | ---------------- | ------------------- |
-| `starter`           | NeoConvert Starter      | `750`            | R$ 7,50/mês         |
-| `pro`               | NeoConvert Pro          | `2900`           | R$ 29/mês           |
-| `business`          | NeoConvert Business     | `7900`           | R$ 79/mês           |
-| `compress_pdf_unit` | Compressão PDF Unitária | `750`            | R$ 7,50 por arquivo |
+| ID         | Nome                | Valor (centavos) | Exibição            |
+| ---------- | ------------------- | ---------------- | ------------------- |
+| `starter`  | NeoConvert Unitário | `750`            | R$ 7,50 por arquivo |
+| `pro`      | NeoConvert Pro      | `2900`           | R$ 29/mês           |
+| `business` | NeoConvert Business | `7900`           | R$ 79/mês           |
 
 > Definidos em `app/api/checkout/route.ts` no objeto `PLANS`.
+
+### Condições de cada plano
+
+- `starter` (unitário):
+  - Cobrança por operação concluída.
+  - Sem recorrência mensal.
+  - Usado hoje pelas ferramentas ativas (`compress-pdf`, `merge-pdf`, `jpg-to-pdf`).
+  - Download liberado após pagamento, com autorização local por 1 hora.
+- `pro`:
+  - Assinatura mensal.
+  - Catálogo completo previsto + limites maiores.
+- `business`:
+  - Assinatura mensal para time/empresa.
+  - Recursos avançados (API, marca, SLA, múltiplos usuários).
 
 ---
 
@@ -39,7 +52,7 @@ POST https://api.flowpay.cash/api/create-charge
   "valor": 29,
   "moeda": "BRL",
   "id_transacao": "neoconvert-{uuid}",
-  "product_id": "pro",
+  "product_id": "starter",
   "customer_name": "Nome do usuário",
   "customer_email": "email@exemplo.com"
 }
@@ -47,12 +60,11 @@ POST https://api.flowpay.cash/api/create-charge
 
 ### Mapeamento de `product_id`
 
-- Por padrão, o NeoConvert envia `starter`, `pro`, `business` ou `compress_pdf_unit`.
+- Por padrão, o NeoConvert envia `starter`, `pro` ou `business`.
 - Se necessário, você pode mapear por ambiente para IDs reais da FlowPay (por exemplo `btn_...`) usando:
   - `FLOWPAY_PRODUCT_ID_STARTER`
   - `FLOWPAY_PRODUCT_ID_PRO`
   - `FLOWPAY_PRODUCT_ID_BUSINESS`
-  - `FLOWPAY_PRODUCT_ID_COMPRESS_PDF_UNIT`
 
 ### Resposta relevante
 

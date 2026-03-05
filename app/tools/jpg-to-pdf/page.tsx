@@ -53,7 +53,7 @@ export default function JpgToPDFPage() {
       tip="Você pode selecionar múltiplas imagens. Cada imagem vira uma página no PDF final."
       payment={{
         enabled: true,
-        planId: "compress_pdf_unit",
+        planId: "starter",
         planName: "Conversão JPG para PDF Unitária",
         planPrice: "R$ 7,50",
         ttlMs: 60 * 60 * 1000,

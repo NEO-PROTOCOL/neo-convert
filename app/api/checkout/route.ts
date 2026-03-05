@@ -12,17 +12,12 @@ import {
 
 const PLANS = {
   starter: {
-    name: "NeoConvert Starter",
+    name: "NeoConvert Unitário",
     value: 750,
     label: "R$ 7,50 por operação",
   },
   pro: { name: "NeoConvert Pro", value: 2900, label: "R$ 29/mês" },
   business: { name: "NeoConvert Business", value: 7900, label: "R$ 79/mês" },
-  compress_pdf_unit: {
-    name: "Compressão PDF Unitária",
-    value: 750,
-    label: "R$ 7,50 por arquivo",
-  },
 } as const;
 
 type PlanId = keyof typeof PLANS;
@@ -64,7 +59,6 @@ function resolveFlowpayProductId(planId: PlanId): string {
     starter: process.env.FLOWPAY_PRODUCT_ID_STARTER,
     pro: process.env.FLOWPAY_PRODUCT_ID_PRO,
     business: process.env.FLOWPAY_PRODUCT_ID_BUSINESS,
-    compress_pdf_unit: process.env.FLOWPAY_PRODUCT_ID_COMPRESS_PDF_UNIT,
   };
 
   const configured = byPlan[planId]?.trim();
