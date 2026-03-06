@@ -301,7 +301,7 @@ export async function POST(req: NextRequest) {
       const safeCorrelationID = escapeHtml(effectiveCorrelationId);
       const safePixCode = brCode ? escapeHtml(brCode) : "";
       const qrImage = qrCodeSrc
-        ? `<img src="${qrCodeSrc}" width="200" height="200" alt="QR Code Pix" style="border-radius:12px;" />`
+        ? `<img src="${escapeHtml(qrCodeSrc)}" width="200" height="200" alt="QR Code Pix" style="border-radius:12px;" />`
         : "";
       const pendingTemplateUuid =
         process.env.MAILTRAP_CHECKOUT_PENDING_TEMPLATE_ID;

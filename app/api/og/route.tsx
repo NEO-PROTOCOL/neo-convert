@@ -3,15 +3,37 @@ import { NextRequest } from 'next/server'
 
 export const runtime = 'edge'
 
+// Allowlist of valid OG titles to prevent phishing via crafted URLs.
+// Rate limiting is not applied here since the Edge runtime doesn't support
+// the in-memory global store used by rate-limit.ts. The allowlist alone
+// prevents abuse by limiting the set of renderable titles.
+const ALLOWED_TITLES: Record<string, string> = {
+    'compress-pdf': 'Comprimir PDF',
+    'merge-pdf': 'Juntar PDF',
+    'split-pdf': 'Dividir PDF',
+    'jpg-to-pdf': 'JPG para PDF',
+    'convert-pdf': 'Converter PDF',
+    'pdf-to-word': 'PDF para Word',
+    'sign-pdf': 'Assinar PDF',
+    'protect-pdf': 'Proteger PDF',
+    'rotate-pdf': 'Girar PDF',
+    'delete-pages': 'Remover Páginas',
+    'word-to-pdf': 'Word para PDF',
+    'excel-to-pdf': 'Excel para PDF',
+    'ai-summary': 'Resumo com IA',
+}
+
+const DEFAULT_TITLE = 'NeoConvert - Professional PDF Tools'
+
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url)
 
-        // ?title=<title>
-        const hasTitle = searchParams.has('title')
-        const title = hasTitle
-            ? searchParams.get('title')?.slice(0, 100)
-            : 'NeoConvert - Professional PDF Tools'
+        // Only allow titles from the allowlist to prevent phishing
+        const titleKey = searchParams.get('title')
+        const title = titleKey && ALLOWED_TITLES[titleKey]
+            ? ALLOWED_TITLES[titleKey]
+            : DEFAULT_TITLE
 
         return new ImageResponse(
             (
