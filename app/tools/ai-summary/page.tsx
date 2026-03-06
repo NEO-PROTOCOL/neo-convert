@@ -1,6 +1,5 @@
 "use client";
 import ComingSoon from "@/components/ComingSoon";
-import { use } from "react";
 
 export default function AiSummaryPage() {
     return (
