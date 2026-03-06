@@ -56,6 +56,7 @@ function ToolPageInner({
     const [error, setError] = useState("");
     const [checkoutOpen, setCheckoutOpen] = useState(false);
     const [downloadAuthorized, setDownloadAuthorized] = useState(false);
+    const [downloadToken, setDownloadToken] = useState<string | null>(null);
     const latestResultsRef = useRef<{ name: string; url: string }[]>([]);
     const acceptedExtensions = useRef(
         accept
@@ -117,7 +118,10 @@ function ToolPageInner({
         const fileUrl = searchParams.get("fileUrl");
         const fileName = searchParams.get("fileName") || "arquivo_importado";
 
-        if (fileUrl && files.length === 0 && !loading) {
+        // Only allow fetching from Vercel Blob Storage to prevent SSRF
+        const ALLOWED_FILE_URL = /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\//;
+
+        if (fileUrl && ALLOWED_FILE_URL.test(fileUrl) && files.length === 0 && !loading) {
             setLoading(true);
             fetch(fileUrl)
                 .then((res) => res.blob())
@@ -127,6 +131,8 @@ function ToolPageInner({
                 })
                 .catch(() => setError("Falha ao carregar arquivo da nuvem."))
                 .finally(() => setLoading(false));
+        } else if (fileUrl && !ALLOWED_FILE_URL.test(fileUrl)) {
+            setError("URL de origem não permitida.");
         }
     }, [searchParams, addFiles, files.length, loading]);
 
@@ -161,7 +167,7 @@ function ToolPageInner({
         setDownloadAuthorized(false);
     }, [paymentEnabled, paymentStorageKey]);
 
-    const handlePaymentApproved = useCallback(() => {
+    const handlePaymentApproved = useCallback((data?: { downloadToken?: string }) => {
         if (paymentEnabled && paymentStorageKey) {
             const expiresAt = Date.now() + paymentTtlMs;
             try {
@@ -169,6 +175,10 @@ function ToolPageInner({
             } catch {
                 // Ignore storage errors; authorization remains in-memory for current session.
             }
+        }
+
+        if (data?.downloadToken) {
+            setDownloadToken(data.downloadToken);
         }
 
         setDownloadAuthorized(true);
@@ -212,8 +222,14 @@ function ToolPageInner({
             const formData = new FormData();
             formData.append("file", blob, res.name);
 
+            const uploadHeaders: Record<string, string> = {};
+            if (downloadToken) {
+                uploadHeaders["x-download-token"] = downloadToken;
+            }
+
             const uploadRes = await fetch("/api/upload-to-cloud", {
                 method: "POST",
+                headers: uploadHeaders,
                 body: formData,
             });
 
@@ -235,6 +251,7 @@ function ToolPageInner({
         clearResults();
         setError("");
         setUploadingKey(null);
+        setDownloadToken(null);
     };
 
     return (
@@ -659,7 +676,7 @@ function ToolPageInner({
                     planId={payment.planId}
                     planName={payment.planName}
                     planPrice={payment.planPrice}
-                    onPaid={handlePaymentApproved}
+                    onPaid={(data) => handlePaymentApproved({ downloadToken: data.downloadToken })}
                 />
             )}
         </main>

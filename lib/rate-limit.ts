@@ -1,3 +1,8 @@
+// TODO: This in-memory rate limiter resets on every serverless cold start and
+// is not shared across parallel function instances on Vercel. For production
+// resilience, migrate to a persistent store (e.g. Vercel KV / Upstash Redis).
+// The same applies to sentPaymentEmails in checkout/status/route.ts.
+
 interface RateLimitEntry {
     count: number;
     resetAt: number;

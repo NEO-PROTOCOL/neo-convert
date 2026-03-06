@@ -3,17 +3,22 @@ import { NextRequest } from "next/server";
 const SIMPLE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function getClientIp(req: NextRequest): string {
+    // Prefer Vercel's built-in IP detection (not user-spoofable).
+    // The `ip` property exists at runtime on Vercel but isn't in the base type.
+    const vercelIp = (req as NextRequest & { ip?: string }).ip;
+    if (vercelIp) return vercelIp;
+
+    // Fallback: use the LAST (rightmost) IP in X-Forwarded-For,
+    // which is the one appended by the infrastructure (not user-controlled).
     const forwardedFor = req.headers.get("x-forwarded-for");
     if (forwardedFor) {
-        const firstIp = forwardedFor.split(",")[0]?.trim();
-        if (firstIp) return firstIp;
+        const parts = forwardedFor.split(",").map((s) => s.trim()).filter(Boolean);
+        const lastIp = parts[parts.length - 1];
+        if (lastIp) return lastIp;
     }
 
     const realIp = req.headers.get("x-real-ip");
     if (realIp) return realIp.trim();
-
-    const cfIp = req.headers.get("cf-connecting-ip");
-    if (cfIp) return cfIp.trim();
 
     return "unknown";
 }

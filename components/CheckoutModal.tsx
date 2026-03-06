@@ -12,6 +12,7 @@ interface CheckoutModalProps {
         planId: string;
         email: string;
         correlationID?: string;
+        downloadToken?: string;
     }) => void;
 }
 
@@ -112,8 +113,9 @@ export default function CheckoutModal({
 
             if (paid) {
                 const correlationID = pixData?.correlationID;
+                const downloadToken = typeof data.downloadToken === "string" ? data.downloadToken : undefined;
                 if (paidNotifiedRef.current !== correlationID) {
-                    onPaid?.({ planId, email, correlationID });
+                    onPaid?.({ planId, email, correlationID, downloadToken });
                     paidNotifiedRef.current = correlationID ?? "__paid_without_id__";
                 }
                 setStep("done");
@@ -499,7 +501,15 @@ const PixStep = memo(({ pixData, timeLeft, formatTime, email, copied, copyPix, c
 ));
 PixStep.displayName = "PixStep";
 
-const DoneStep = memo(({ email, paymentStatus, paidAt, correlationID, reset }: any) => (
+interface DoneStepProps {
+    email: string;
+    paymentStatus: string;
+    paidAt: string | null;
+    correlationID: string;
+    reset: () => void;
+}
+
+const DoneStep = memo(({ email, paymentStatus, paidAt, correlationID, reset }: DoneStepProps) => (
     <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
         <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Pago com sucesso!</h2>
