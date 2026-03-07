@@ -6,7 +6,6 @@
 # ─── FLOWPAY API (Pix centralizado na stack NEO) ─────────
 FLOWPAY_API_URL=https://api.flowpay.cash
 FLOWPAY_INTERNAL_API_KEY=SUA_FLOWPAY_INTERNAL_API_KEY
-# Opcional (alias legado aceito): FLOWPAY_API_KEY=
 # Opcional (mapeamento de planos para product/button id na FlowPay):
 # FLOWPAY_PRODUCT_ID_STARTER=btn_xxx
 # FLOWPAY_PRODUCT_ID_PRO=btn_yyy
@@ -34,7 +33,6 @@ Configurar em: **Vercel Dashboard → Project → Settings → Environment Varia
 ```bash
 FLOWPAY_API_URL=https://api.flowpay.cash
 FLOWPAY_INTERNAL_API_KEY=PROD_FLOWPAY_INTERNAL_API_KEY
-# Opcional (alias legado): FLOWPAY_API_KEY=PROD_FLOWPAY_INTERNAL_API_KEY
 FLOWPAY_PRODUCT_ID_STARTER=btn_xxx
 FLOWPAY_PRODUCT_ID_PRO=btn_yyy
 FLOWPAY_PRODUCT_ID_BUSINESS=btn_zzz
@@ -71,4 +69,4 @@ neo_READ_WRITE_TOKEN=PROD_BLOB_TOKEN
 
 - Nunca commitar `.env.local` no git (já está no `.gitignore`)
 - Rotacionar chaves se comprometidas
-- `FLOWPAY_INTERNAL_API_KEY` deve existir apenas em ambiente seguro (Vercel/CI secrets)
+- `FLOWPAY_INTERNAL_API_KEY` é a única chave aceita pelo checkout e deve existir apenas em ambiente seguro (Vercel/CI secrets)

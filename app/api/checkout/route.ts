@@ -175,14 +175,9 @@ export async function POST(req: NextRequest) {
     const plan = PLANS[planId];
     const flowpayProductId = resolveFlowpayProductId(planId);
 
-    const flowpayApiKey =
-      process.env.FLOWPAY_INTERNAL_API_KEY ||
-      process.env.FLOWPAY_API_KEY ||
-      process.env.WOOVI_API_KEY;
+    const flowpayApiKey = process.env.FLOWPAY_INTERNAL_API_KEY;
     if (!flowpayApiKey) {
-      console.error(
-        "FLOWPAY_INTERNAL_API_KEY/FLOWPAY_API_KEY/WOOVI_API_KEY não configurado",
-      );
+      console.error("FLOWPAY_INTERNAL_API_KEY não configurado");
       return NextResponse.json(
         { error: "Serviço de pagamento indisponível no momento." },
         { status: 503 },

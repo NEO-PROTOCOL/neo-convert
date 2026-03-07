@@ -122,10 +122,7 @@ export async function GET(
     );
   }
 
-  const flowpayApiKey =
-    process.env.FLOWPAY_INTERNAL_API_KEY ||
-    process.env.FLOWPAY_API_KEY ||
-    process.env.WOOVI_API_KEY;
+  const flowpayApiKey = process.env.FLOWPAY_INTERNAL_API_KEY;
   if (!flowpayApiKey) {
     return NextResponse.json(
       { error: "Serviço de pagamento indisponível no momento." },
@@ -259,7 +256,9 @@ export async function GET(
 
   // Issue a server-signed download token when payment is confirmed.
   // The client must present this token to upload-to-cloud to get a cloud link.
-  const downloadToken = paid ? createDownloadToken(chargeId, "starter") : undefined;
+  const downloadToken = paid
+    ? createDownloadToken(chargeId, "starter")
+    : undefined;
 
   const response = NextResponse.json({
     success: true,
