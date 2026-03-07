@@ -91,8 +91,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Try public access first; fall back to private if the store
-    // is configured with private access (Vercel Blob v2).
+    // Try public access first; fall back to private when the store
+    // requires authenticated access for generated file links.
     let blob;
     try {
       blob = await put(filename, file, {
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     response.headers.set("Cache-Control", "no-store");
     return response;
   } catch (error) {
-    console.error("Error uploading to Vercel Blob:", error);
+    console.error("Error uploading processed file to object storage:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

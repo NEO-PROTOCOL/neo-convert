@@ -44,13 +44,13 @@ export default function JpgToPDFPage() {
     <ToolPage
       icon="🖼️"
       title="JPG para PDF"
-      description="Converta imagens JPG ou PNG para PDF em segundos. Após processar, o download é liberado mediante pagamento unitário."
+      description="Converta imagens JPG ou PNG para PDF em segundos. As primeiras conversões pequenas ficam liberadas sem cobrança neste dispositivo."
       accept=".jpg,.jpeg,.png"
       acceptLabel="Imagens JPG ou PNG · até 50 MB"
       color="#0ea5e9"
       onProcess={jpgToPDF}
       multi={true}
-      tip="Você pode selecionar múltiplas imagens. Cada imagem vira uma página no PDF final."
+      tip="Você pode selecionar múltiplas imagens. Cada imagem vira uma página no PDF final. Até 5 conversões de lotes com no máximo 5 imagens ficam liberadas neste dispositivo."
       payment={{
         enabled: true,
         planId: "starter",
@@ -58,6 +58,11 @@ export default function JpgToPDFPage() {
         planPrice: "R$ 7,50",
         ttlMs: 60 * 60 * 1000,
         localStorageKey: "neo:download-authorization:jpg-to-pdf",
+        freeAllowance: {
+          maxUsesPerDevice: 5,
+          maxFilesPerUse: 5,
+          storageKey: "neo:free-usage:jpg-to-pdf",
+        },
       }}
     />
   );

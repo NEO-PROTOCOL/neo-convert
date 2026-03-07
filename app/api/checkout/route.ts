@@ -346,7 +346,7 @@ export async function POST(req: NextRequest) {
       </ol>
     </div>
     <div style="text-align:center;font-size:12px;color:rgba(232,232,240,0.3);">
-      <p>Dúvidas? <a href="mailto:suporte@neo-convert.site" style="color:#00ff9d;text-decoration:none;">suporte@neo-convert.site</a></p>
+      <p>Dúvidas? <a href="mailto:neo@neoprotocol.space" style="color:#00ff9d;text-decoration:none;">neo@neoprotocol.space</a></p>
       <p style="margin-top:8px;">© ${new Date().getFullYear()} NΞØ CONVΞRT</p>
     </div>
   </div>
