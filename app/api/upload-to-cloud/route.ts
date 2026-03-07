@@ -1,4 +1,4 @@
-import { put } from "@vercel/blob";
+import { put, BlobAccessError } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { validateDownloadToken } from "@/lib/download-token";
@@ -91,15 +91,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const blob = await put(filename, file, {
-      access: "public",
-      contentType: file.type,
-      addRandomSuffix: true,
-      token: token,
-    });
+    // Try public access first; fall back to private if the store
+    // is configured with private access (Vercel Blob v2).
+    let blob;
+    try {
+      blob = await put(filename, file, {
+        access: "public",
+        contentType: file.type,
+        addRandomSuffix: true,
+        token: token,
+      });
+    } catch (accessError) {
+      if (accessError instanceof BlobAccessError) {
+        blob = await put(filename, file, {
+          access: "private",
+          contentType: file.type,
+          addRandomSuffix: true,
+          token: token,
+        });
+      } else {
+        throw accessError;
+      }
+    }
 
     const response = NextResponse.json({
-      url: blob.url,
+      url: blob.downloadUrl ?? blob.url,
       pathname: blob.pathname,
       contentType: blob.contentType,
     });
