@@ -363,7 +363,6 @@ export default function CheckoutModal({
             pixData={pixData}
             timeLeft={timeLeft}
             formatTime={formatTime}
-            email={email}
             copied={copied}
             copyPix={copyPix}
             paymentStatus={paymentStatus}
@@ -535,7 +534,6 @@ interface PixStepProps {
   };
   timeLeft: number;
   formatTime: (s: number) => string;
-  email: string;
   copied: boolean;
   copyPix: () => void;
   paymentStatus: string;
@@ -549,7 +547,6 @@ const PixStep = memo(
     pixData,
     timeLeft,
     formatTime,
-    email,
     copied,
     copyPix,
     checkingStatus,
