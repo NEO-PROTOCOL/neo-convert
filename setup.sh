@@ -268,7 +268,6 @@ export default function Navbar() {
           {[
             { label: "Ferramentas", href: "#tools" },
             { label: "Preços", href: "#precos" },
-            { label: "Blog", href: "/blog" },
           ].map((item) => (
             <Link key={item.href} href={item.href} style={{
               padding: "8px 14px", borderRadius: "var(--radius-sm)",

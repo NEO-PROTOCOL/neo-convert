@@ -1,6 +1,7 @@
-import { put } from "@vercel/blob";
+import { put, BlobAccessError } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { validateDownloadToken } from "@/lib/download-token";
 import { getClientIp, isSameOriginRequest, safeFilename } from "@/lib/security";
 
 export const maxDuration = 60; // 60 segundos de tolerância para uploads grandes
@@ -18,7 +19,6 @@ const ALLOWED_CONTENT_TYPES = new Set([
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/octet-stream",
 ]);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -40,6 +40,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
       },
     );
+  }
+
+  // Verify server-signed download token from payment flow.
+  // Token is passed as a header to avoid coupling it to FormData.
+  const downloadToken = request.headers.get("x-download-token");
+  if (downloadToken) {
+    const tokenResult = validateDownloadToken(downloadToken);
+    if (!tokenResult.valid) {
+      return NextResponse.json(
+        { error: "Token de download inválido ou expirado." },
+        { status: 403 },
+      );
+    }
   }
 
   try {
@@ -78,27 +91,40 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const blob = await put(filename, file, {
-      access: "public",
-      contentType: file.type,
-      addRandomSuffix: true,
-      token: token,
-    });
+    // Try public access first; fall back to private when the store
+    // requires authenticated access for generated file links.
+    let blob;
+    try {
+      blob = await put(filename, file, {
+        access: "public",
+        contentType: file.type,
+        addRandomSuffix: true,
+        token: token,
+      });
+    } catch (accessError) {
+      if (accessError instanceof BlobAccessError) {
+        blob = await put(filename, file, {
+          access: "private",
+          contentType: file.type,
+          addRandomSuffix: true,
+          token: token,
+        });
+      } else {
+        throw accessError;
+      }
+    }
 
     const response = NextResponse.json({
-      url: blob.url,
+      url: blob.downloadUrl ?? blob.url,
       pathname: blob.pathname,
       contentType: blob.contentType,
     });
     response.headers.set("Cache-Control", "no-store");
     return response;
   } catch (error) {
-    console.error("Error uploading to Vercel Blob:", error);
+    console.error("Error uploading processed file to object storage:", error);
     return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        details: error instanceof Error ? error.message : String(error),
-      },
+      { error: "Internal Server Error" },
       { status: 500 },
     );
   }

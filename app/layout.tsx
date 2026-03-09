@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
+import CookieConsent from "@/components/CookieConsent";
 
 export const metadata: Metadata = {
   title: "NeoConvert — PDF Tools Inteligentes",
-  description: "Converta, comprima, mescle e assine PDFs com velocidade. Ferramentas premium, sem instalar nada.",
-  metadataBase: new URL('https://neo-convert.site'),
+  description:
+    "Converta, comprima, mescle e assine PDFs com velocidade. Ferramentas premium, sem instalar nada.",
+  metadataBase: new URL("https://neo-convert.site"),
   alternates: {
-    canonical: '/',
+    canonical: "/",
   },
   keywords: [
     "pdf converter",
@@ -21,34 +21,37 @@ export const metadata: Metadata = {
   openGraph: {
     title: "NeoConvert — PDF Tools Inteligentes",
     description: "Converta, comprima, mescle e assine PDFs com velocidade.",
-    url: 'https://neo-convert.site',
-    siteName: 'NeoConvert',
-    locale: 'pt-BR',
-    type: 'website',
+    url: "https://neo-convert.site",
+    siteName: "NeoConvert",
+    locale: "pt-BR",
+    type: "website",
     images: [
       {
-        url: '/api/og',
+        url: "/api/og",
         width: 1200,
         height: 630,
-        alt: 'NeoConvert - PDF Tools',
+        alt: "NeoConvert - PDF Tools",
       },
     ],
   },
   twitter: {
-    card: 'summary_large_image',
+    card: "summary_large_image",
     title: "NeoConvert — PDF Tools Inteligentes",
     description: "Converta, comprima, mescle e assine PDFs com velocidade.",
-    images: ['/api/og'],
+    images: ["/api/og"],
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="pt-BR">
       <body>
         {children}
-        <Analytics />
-        <SpeedInsights />
+        <CookieConsent />
       </body>
     </html>
   );

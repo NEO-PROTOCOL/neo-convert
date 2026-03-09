@@ -11,7 +11,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
         'convert-pdf',
         'pdf-to-word',
         'sign-pdf',
-        'compress-image',
     ]
 
     return [

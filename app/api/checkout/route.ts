@@ -175,14 +175,9 @@ export async function POST(req: NextRequest) {
     const plan = PLANS[planId];
     const flowpayProductId = resolveFlowpayProductId(planId);
 
-    const flowpayApiKey =
-      process.env.FLOWPAY_INTERNAL_API_KEY ||
-      process.env.FLOWPAY_API_KEY ||
-      process.env.WOOVI_API_KEY;
+    const flowpayApiKey = process.env.FLOWPAY_INTERNAL_API_KEY;
     if (!flowpayApiKey) {
-      console.error(
-        "FLOWPAY_INTERNAL_API_KEY/FLOWPAY_API_KEY/WOOVI_API_KEY não configurado",
-      );
+      console.error("FLOWPAY_INTERNAL_API_KEY não configurado");
       return NextResponse.json(
         { error: "Serviço de pagamento indisponível no momento." },
         { status: 503 },
@@ -301,7 +296,7 @@ export async function POST(req: NextRequest) {
       const safeCorrelationID = escapeHtml(effectiveCorrelationId);
       const safePixCode = brCode ? escapeHtml(brCode) : "";
       const qrImage = qrCodeSrc
-        ? `<img src="${qrCodeSrc}" width="200" height="200" alt="QR Code Pix" style="border-radius:12px;" />`
+        ? `<img src="${escapeHtml(qrCodeSrc)}" width="200" height="200" alt="QR Code Pix" style="border-radius:12px;" />`
         : "";
       const pendingTemplateUuid =
         process.env.MAILTRAP_CHECKOUT_PENDING_TEMPLATE_ID;
@@ -351,7 +346,7 @@ export async function POST(req: NextRequest) {
       </ol>
     </div>
     <div style="text-align:center;font-size:12px;color:rgba(232,232,240,0.3);">
-      <p>Dúvidas? <a href="mailto:suporte@neo-convert.site" style="color:#00ff9d;text-decoration:none;">suporte@neo-convert.site</a></p>
+      <p>Dúvidas? <a href="mailto:neo@neoprotocol.space" style="color:#00ff9d;text-decoration:none;">neo@neoprotocol.space</a></p>
       <p style="margin-top:8px;">© ${new Date().getFullYear()} NΞØ CONVΞRT</p>
     </div>
   </div>
