@@ -256,8 +256,14 @@ export async function GET(
 
   // Issue a server-signed download token when payment is confirmed.
   // The client must present this token to upload-to-cloud to get a cloud link.
+  // Derive the plan from the payment status (if available) to avoid hardcoding "starter".
+  const plan =
+    status && typeof status === "object" && "plan" in (status as any) && typeof (status as any).plan === "string"
+      ? (status as any).plan
+      : "starter";
+
   const downloadToken = paid
-    ? createDownloadToken(chargeId, "starter")
+    ? createDownloadToken(chargeId, plan)
     : undefined;
 
   const response = NextResponse.json({
