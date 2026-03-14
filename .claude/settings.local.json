@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout -b fix/security-audit-fixes)",
+      "Bash(git add app/api/checkout/route.ts app/api/checkout/status/[chargeId]/route.ts app/api/cron/route.ts app/api/og/route.tsx app/api/upload-to-cloud/route.ts app/sitemap.ts components/CheckoutModal.tsx components/ToolPage.tsx lib/rate-limit.ts lib/security.ts lib/download-token.ts)",
+      "Bash(git commit:*)",
+      "Bash(git push -u origin fix/security-audit-fixes)",
+      "Bash(gh pr:*)",
+      "Bash(git checkout main)",
+      "Bash(git pull)",
+      "Bash(npx next build)"
+    ]
+  }
+}

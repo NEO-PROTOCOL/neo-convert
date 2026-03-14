@@ -12,9 +12,9 @@ pnpm add resend
 
 # ═══ .env.local ═══
 cat > .env.local << 'ENVEOF'
-# FlowPay / Woovi Pix
-WOOVI_API_KEY=sua_chave_aqui
-WOOVI_API_URL=https://api.woovi.com
+# FlowPay Pix
+FLOWPAY_INTERNAL_API_KEY=sua_chave_aqui
+FLOWPAY_API_URL=https://api.flowpay.cash
 
 # Resend Email
 RESEND_API_KEY=sua_chave_aqui
@@ -53,21 +53,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Plano inválido" }, { status: 400 });
     }
 
-    const wooviKey = process.env.WOOVI_API_KEY;
-    const wooviUrl = (process.env.WOOVI_API_URL || "https://api.woovi.com").replace(/\/$/, "");
+    const flowpayKey = process.env.FLOWPAY_INTERNAL_API_KEY;
+    const flowpayUrl = (process.env.FLOWPAY_API_URL || "https://api.flowpay.cash").replace(/\/$/, "");
 
-    if (!wooviKey) {
-      return NextResponse.json({ error: "WOOVI_API_KEY não configurada" }, { status: 500 });
+    if (!flowpayKey) {
+      return NextResponse.json({ error: "FLOWPAY_INTERNAL_API_KEY não configurada" }, { status: 500 });
     }
 
     const correlationId = `neoconvert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const expiresIn = 3600; // 1 hora
 
-    // Criar cobrança Pix via Woovi (mesma API que FlowPay usa)
-    const charge = await fetch(`${wooviUrl}/api/v1/charge`, {
+    // Criar cobrança Pix via FlowPay
+    const charge = await fetch(`${flowpayUrl}/api/v1/charge`, {
       method: "POST",
       headers: {
-        Authorization: wooviKey,
+        Authorization: flowpayKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     const chargeData = await charge.json() as any;
 
     if (!charge.ok) {
-      console.error("[checkout] Woovi error:", chargeData);
+      console.error("[checkout] FlowPay error:", chargeData);
       return NextResponse.json({ error: chargeData?.error?.message || "Erro ao criar cobrança Pix" }, { status: 502 });
     }
 
@@ -544,7 +544,7 @@ echo "════════════════════════�
 echo "💳 Payment setup completo!"
 echo ""
 echo "⚠️  Configure as chaves em .env.local:"
-echo "    WOOVI_API_KEY=sua_chave_woovi"
+echo "    FLOWPAY_INTERNAL_API_KEY=sua_chave_flowpay"
 echo "    RESEND_API_KEY=sua_chave_resend"
 echo ""
 echo "▶  Reinicie o servidor: pnpm dev"

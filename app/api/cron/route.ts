@@ -33,15 +33,8 @@ function resolveRetentionMs(): number {
 }
 
 export async function GET(req: NextRequest) {
-    const ip = getClientIp(req);
-    const rateLimit = enforceRateLimit(`cron:${ip}`, CRON_RATE_LIMIT, CRON_WINDOW_MS);
-    if (!rateLimit.allowed) {
-        return NextResponse.json(
-            { ok: false, error: "Too Many Requests" },
-            { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
-        );
-    }
-
+    // Auth check FIRST — before rate limit to prevent unauthenticated requests
+    // from consuming rate limit slots or blocking legitimate cron calls.
     const cronSecret = process.env.CRON_SECRET;
     if (!cronSecret) {
         console.error("CRON_SECRET não configurado");
@@ -50,6 +43,15 @@ export async function GET(req: NextRequest) {
 
     if (!isAuthorizedCronRequest(req.headers.get("Authorization"), cronSecret)) {
         return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    const ip = getClientIp(req);
+    const rateLimit = enforceRateLimit(`cron:${ip}`, CRON_RATE_LIMIT, CRON_WINDOW_MS);
+    if (!rateLimit.allowed) {
+        return NextResponse.json(
+            { ok: false, error: "Too Many Requests" },
+            { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+        );
     }
 
     const retentionMs = resolveRetentionMs();

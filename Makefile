@@ -95,20 +95,40 @@ deploy-preview: ## Deploy de preview (Staging)
 	vercel
 	@echo "$(GREEN)✓ Deploy preview concluído!$(RESET)"
 
-## ── Git ──────────────────────────────────────────────────────
+## ── Git & Protocolo NΞØ ──────────────────────────────────────────
 
-commit: ## Commit com verificação de lint (uso: make commit MSG="feat: ...")
+tag: ## Cria e envia uma TAG (uso: make tag V=v1.0.0 M="Versão 1.0")
+	@if [ -z "$(V)" ]; then echo "$(YELLOW)Uso: make tag V=v1.0.0 M=\"Mensagem\"$(RESET)"; exit 1; fi
+	git tag -a $(V) -m "$(M)"
+	git push origin $(V)
+	@echo "$(GREEN)✓ Tag $(V) criada e enviada.$(RESET)"
+
+commit: ## Commit simples (uso: make commit MSG="feat: ...")
 	@if [ -z "$(MSG)" ]; then \
-		echo "$(YELLOW)Uso: make commit MSG=\"feat: sua mensagem\"$(RESET)"; \
+		echo "$(YELLOW)Uso: make commit MSG=\"tipo: mensagem\"$(RESET)"; \
 		exit 1; \
 	fi
 	git add .
 	git commit -m "$(MSG)"
 
-push: ## Push para origin main
-	git push origin main
+push: ## Push para a branch atual
+	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	git push origin $$BRANCH
 
-release: check build commit push ## Full release: check → build → commit → push
+neo-push: audit lint build ## [PROTOCOLO NΞØ] Security check → Build → Commit → Push
+	@if [ -z "$(MSG)" ]; then \
+		echo "$(YELLOW)Erro: Mensagem de commit obrigatória (Siga Conventional Commits).$(RESET)"; \
+		echo "$(YELLOW)Uso: make neo-push MSG=\"feat: descrição\"$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(CYAN)→ Preparando commit seguro...$(RESET)"
+	git add .
+	git commit -m "$(MSG)"
+	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	git push origin $$BRANCH
+	@echo "$(GREEN)✓ Protocolo NΞØ concluído com sucesso.$(RESET)"
+
+release: neo-push ## Alias para o protocolo completo
 
 ## ── Utilitários ──────────────────────────────────────────────
 

@@ -1,6 +1,8 @@
 // Helper para envio de email via Mailtrap
 // Docs: https://api-docs.mailtrap.io/docs/mailtrap-api-docs/bcf61cdc1547e-send-email
 
+import { EMAIL_REGEX, SECURITY, API_TIMEOUTS } from "./constants";
+
 interface MailtrapEmail {
     to: string;
     subject?: string; // Opcional se usar template
@@ -10,9 +12,6 @@ interface MailtrapEmail {
     fromName?: string;
     fromEmail?: string;
 }
-
-const MAILTRAP_TIMEOUT_MS = 10_000;
-const SIMPLE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function sendEmail({
     to,
@@ -30,7 +29,7 @@ export async function sendEmail({
     }
 
     const toEmail = to.trim().toLowerCase();
-    if (!SIMPLE_EMAIL_REGEX.test(toEmail) || toEmail.length > 254) {
+    if (!EMAIL_REGEX.test(toEmail) || toEmail.length > SECURITY.MAX_EMAIL_LENGTH) {
         throw new Error("Mailtrap: email de destino inválido");
     }
 
@@ -39,7 +38,16 @@ export async function sendEmail({
         name: fromName || process.env.MAILTRAP_FROM_NAME || "NΞØ CONVΞRT",
     };
 
-    const payload: any = {
+    interface MailtrapPayload {
+        from: { email: string; name: string };
+        to: { email: string }[];
+        subject?: string;
+        html?: string;
+        template_uuid?: string;
+        template_variables?: Record<string, string | number | boolean>;
+    }
+
+    const payload: MailtrapPayload = {
         from,
         to: [{ email: toEmail }],
     };
@@ -59,7 +67,7 @@ export async function sendEmail({
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), MAILTRAP_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), API_TIMEOUTS.MAILTRAP_MS);
 
     try {
         const res = await fetch("https://send.api.mailtrap.io/api/send", {

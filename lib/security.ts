@@ -1,19 +1,23 @@
 import { NextRequest } from "next/server";
-
-const SIMPLE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { EMAIL_REGEX, SECURITY, APP_INFO } from "./constants";
 
 export function getClientIp(req: NextRequest): string {
+    // Prefer Vercel's built-in IP detection (not user-spoofable).
+    // The `ip` property exists at runtime on Vercel but isn't in the base type.
+    const vercelIp = (req as NextRequest & { ip?: string }).ip;
+    if (vercelIp) return vercelIp;
+
+    // Fallback: use the LAST (rightmost) IP in X-Forwarded-For,
+    // which is the one appended by the infrastructure (not user-controlled).
     const forwardedFor = req.headers.get("x-forwarded-for");
     if (forwardedFor) {
-        const firstIp = forwardedFor.split(",")[0]?.trim();
-        if (firstIp) return firstIp;
+        const parts = forwardedFor.split(",").map((s) => s.trim()).filter(Boolean);
+        const lastIp = parts[parts.length - 1];
+        if (lastIp) return lastIp;
     }
 
     const realIp = req.headers.get("x-real-ip");
     if (realIp) return realIp.trim();
-
-    const cfIp = req.headers.get("cf-connecting-ip");
-    if (cfIp) return cfIp.trim();
 
     return "unknown";
 }
@@ -42,8 +46,8 @@ export function normalizeText(input: unknown, maxLength: number): string | null 
 export function normalizeEmail(input: unknown): string | null {
     if (typeof input !== "string") return null;
     const email = input.trim().toLowerCase();
-    if (!email || email.length > 254) return null;
-    if (!SIMPLE_EMAIL_REGEX.test(email)) return null;
+    if (!email || email.length > SECURITY.MAX_EMAIL_LENGTH) return null;
+    if (!EMAIL_REGEX.test(email)) return null;
     return email;
 }
 
@@ -56,7 +60,7 @@ export function escapeHtml(input: string): string {
         .replace(/'/g, "&#39;");
 }
 
-export function safeFilename(input: string, fallback = "arquivo"): string {
+export function safeFilename(input: string, fallback = APP_INFO.DEFAULT_FILENAME_FALLBACK): string {
     const extension = input.includes(".") ? input.split(".").pop() ?? "" : "";
     const baseName = input.includes(".")
         ? input.slice(0, input.lastIndexOf("."))
@@ -67,7 +71,7 @@ export function safeFilename(input: string, fallback = "arquivo"): string {
         .replace(/[^\w\s-]/g, "")
         .trim()
         .replace(/\s+/g, "-")
-        .slice(0, 80);
+        .slice(0, SECURITY.MAX_FILENAME_LENGTH);
 
     const safeBase = sanitizedBase || fallback;
     const safeExt = extension
@@ -79,7 +83,7 @@ export function safeFilename(input: string, fallback = "arquivo"): string {
 }
 
 export function resolvePublicAppUrl(value: string | undefined): string {
-    const fallback = "https://neo-convert.site";
+    const fallback = APP_INFO.DEFAULT_URL;
     if (!value) return fallback;
 
     try {
