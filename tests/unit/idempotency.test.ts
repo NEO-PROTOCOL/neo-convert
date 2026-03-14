@@ -59,10 +59,7 @@ describe("idempotency", () => {
       const key = "test-key-12345678";
       const response = NextResponse.json({ success: true }, { status: 200 });
       
-      cacheResponse(key, response);
-      
-      // Wait a bit for async caching
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await cacheResponse(key, response);
       
       const cached = getCachedResponse(key);
       expect(cached).not.toBeNull();
@@ -121,9 +118,6 @@ describe("idempotency", () => {
         return NextResponse.json({ result: "ok", timestamp: Date.now() });
       });
 
-      // Wait for caching
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
       // Second request with same key
       const response2 = await withIdempotency(req2, async () => {
         handlerCalls++;
@@ -143,8 +137,6 @@ describe("idempotency", () => {
       await withIdempotency(req, async () => {
         return NextResponse.json({ error: "failed" }, { status: 400 });
       });
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
 
       const cached = getCachedResponse(key);
       expect(cached).toBeNull(); // Should not cache error responses
