@@ -39,9 +39,27 @@ Abra [http://localhost:3000](http://localhost:3000) no seu navegador.
 
 Toda documentação está localizada em `/docs`:
 
-- `ARCHITECTURE.md`: Detalhes de serviços externos e roteamento.
-- `DEPLOY.md`: Estratégias e Vercel CI.
-- `ENV.md`: Todas as variáveis e onde conseguir as chaves.
-- `PAYMENTS.md`: Arquitetura do módulo checkout.
-- `ROADMAP.md`: Ferramentas sendo planejadas e futuro do projeto.
+- **`ARCHITECTURE.md`**: Detalhes de serviços externos e roteamento
+- **`SECURITY.md`**: Modelo de ameaças, controles de segurança e procedimentos ⚡ NEW
+- **`BEST_PRACTICES.md`**: Guia de desenvolvimento e padrões de código ⚡ NEW
+- **`AUDIT_SUMMARY.md`**: Resumo da auditoria de segurança realizada ⚡ NEW
+- **`MIGRATION.md`**: Guia de migração para melhorias de segurança ⚡ NEW
+- **`DEPLOY.md`**: Estratégias e Vercel CI
+- **`ENV.md`**: Todas as variáveis e onde conseguir as chaves
+- **`PAYMENTS.md`**: Arquitetura do módulo checkout
+- **`ROADMAP.md`**: Ferramentas sendo planejadas e futuro do projeto
+
+### 🔒 Segurança
+
+O projeto passou por uma auditoria completa de segurança. Principais destaques:
+
+- ✅ **Zero vulnerabilidades** em dependências npm
+- ✅ **Validação de entrada** abrangente em todos os endpoints
+- ✅ **Proteção CSRF** em operações de mudança de estado
+- ✅ **Rate limiting** por IP e endpoint
+- ✅ **Logs estruturados** com redação automática de PII
+- ✅ **Tokens HMAC** com TTL de 1 hora
+- ✅ **Suporte a idempotência** para prevenir duplicação
+
+Veja `docs/SECURITY.md` para detalhes completos.
 
