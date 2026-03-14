@@ -52,7 +52,11 @@ export default function Navbar() {
 
         {/* CTA */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Link href="#precos" className="btn-primary" style={{ padding: "9px 20px", fontSize: 14 }}>
+          <Link
+            href="/checkout?plan=starter"
+            className="btn-primary"
+            style={{ padding: "9px 20px", fontSize: 14 }}
+          >
             Iniciar
           </Link>
         </div>

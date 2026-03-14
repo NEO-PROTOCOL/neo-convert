@@ -60,7 +60,10 @@ export function escapeHtml(input: string): string {
         .replace(/'/g, "&#39;");
 }
 
-export function safeFilename(input: string, fallback = APP_INFO.DEFAULT_FILENAME_FALLBACK): string {
+export function safeFilename(
+    input: string,
+    fallback: string = APP_INFO.DEFAULT_FILENAME_FALLBACK
+): string {
     const extension = input.includes(".") ? input.split(".").pop() ?? "" : "";
     const baseName = input.includes(".")
         ? input.slice(0, input.lastIndexOf("."))

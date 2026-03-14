@@ -1,6 +1,8 @@
 "use client";
+import Link from "next/link";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { getCheckoutPlanById } from "@/lib/checkout-plans";
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -26,9 +28,12 @@ export default function CheckoutModal({
   planPrice,
   onPaid,
 }: CheckoutModalProps) {
+  const resolvedPlan = getCheckoutPlanById(planId);
   const [step, setStep] = useState<Step>("form");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedCharge, setAcceptedCharge] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [pixData, setPixData] = useState<{
@@ -176,6 +181,11 @@ export default function CheckoutModal({
       setLoading(false);
       return;
     }
+    if (!acceptedTerms || !acceptedCharge) {
+      setError("Confirme os termos e as condições comerciais antes de continuar.");
+      setLoading(false);
+      return;
+    }
 
     let timeout: ReturnType<typeof setTimeout> | null = null;
     try {
@@ -252,6 +262,8 @@ export default function CheckoutModal({
     setStep("form");
     setName("");
     setEmail("");
+    setAcceptedTerms(false);
+    setAcceptedCharge(false);
     setError("");
     setPixData(null);
     setCopied(false);
@@ -319,30 +331,58 @@ export default function CheckoutModal({
 
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
+            display: "grid",
+            gap: 14,
             background: "var(--neo-green-dim)",
             border: "1px solid var(--border-accent)",
             borderRadius: "var(--radius-md)",
-            padding: "12px 16px",
+            padding: "14px 16px",
             marginBottom: 28,
           }}
         >
-          <span style={{ fontSize: 20 }}>⚡</span>
-          <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: "var(--neo-green)",
+                }}
+              >
+                {planName}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                {planPrice} · Pix
+              </div>
+            </div>
             <div
               style={{
-                fontWeight: 700,
-                fontSize: 14,
-                color: "var(--neo-green)",
+                fontSize: 11,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                color: "var(--text-muted)",
               }}
             >
-              {planName}
+              Checkout contextual
             </div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-              {planPrice} · Pix
-            </div>
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--text-secondary)",
+              lineHeight: 1.7,
+            }}
+          >
+            {resolvedPlan.billingModel}
+            {" "}
+            {resolvedPlan.deliveryWindow}
           </div>
         </div>
 
@@ -352,9 +392,14 @@ export default function CheckoutModal({
             setName={setName}
             email={email}
             setEmail={setEmail}
+            acceptedTerms={acceptedTerms}
+            acceptedCharge={acceptedCharge}
+            setAcceptedTerms={setAcceptedTerms}
+            setAcceptedCharge={setAcceptedCharge}
             loading={loading}
             error={error}
             onSubmit={handleSubmit}
+            billingModel={resolvedPlan.billingModel}
           />
         )}
 
@@ -396,9 +441,14 @@ interface CheckoutFormProps {
   setName: (val: string) => void;
   email: string;
   setEmail: (val: string) => void;
+  acceptedTerms: boolean;
+  acceptedCharge: boolean;
+  setAcceptedTerms: (val: boolean) => void;
+  setAcceptedCharge: (val: boolean) => void;
   loading: boolean;
   error: string;
   onSubmit: (e: React.FormEvent) => Promise<void>;
+  billingModel: string;
 }
 
 const CheckoutForm = memo(
@@ -407,9 +457,14 @@ const CheckoutForm = memo(
     setName,
     email,
     setEmail,
+    acceptedTerms,
+    acceptedCharge,
+    setAcceptedTerms,
+    setAcceptedCharge,
     loading,
     error,
     onSubmit,
+    billingModel,
   }: CheckoutFormProps) => (
     <form onSubmit={onSubmit}>
       <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>
@@ -499,6 +554,86 @@ const CheckoutForm = memo(
             }}
           />
         </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 18,
+          padding: 14,
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--border-subtle)",
+          background: "rgba(255,255,255,0.02)",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            color: "var(--text-muted)",
+            marginBottom: 8,
+          }}
+        >
+          Resumo comercial
+        </div>
+        <p
+          style={{
+            fontSize: 13,
+            color: "var(--text-secondary)",
+            lineHeight: 1.7,
+          }}
+        >
+          {billingModel}
+        </p>
+      </div>
+
+      <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
+        <label
+          style={{
+            display: "grid",
+            gridTemplateColumns: "18px minmax(0, 1fr)",
+            gap: 10,
+            alignItems: "flex-start",
+            color: "var(--text-secondary)",
+            fontSize: 13,
+            lineHeight: 1.6,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={acceptedTerms}
+            onChange={(e) => setAcceptedTerms(e.target.checked)}
+            style={{ marginTop: 3 }}
+          />
+          <span>
+            Li e concordo com os <Link href="/termos">Termos de Uso</Link> e a{" "}
+            <Link href="/privacidade">Política de Privacidade</Link>.
+          </span>
+        </label>
+
+        <label
+          style={{
+            display: "grid",
+            gridTemplateColumns: "18px minmax(0, 1fr)",
+            gap: 10,
+            alignItems: "flex-start",
+            color: "var(--text-secondary)",
+            fontSize: 13,
+            lineHeight: 1.6,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={acceptedCharge}
+            onChange={(e) => setAcceptedCharge(e.target.checked)}
+            style={{ marginTop: 3 }}
+          />
+          <span>
+            Entendo a cobrança exibida e que dúvidas comerciais devem ser
+            tratadas em{" "}
+            <a href="mailto:neo@neoprotocol.space">neo@neoprotocol.space</a>.
+          </span>
+        </label>
       </div>
 
       {error && (

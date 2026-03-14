@@ -1,8 +1,14 @@
 "use client";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, Suspense } from "react";
-import CheckoutModal from "@/components/CheckoutModal";
+
+type ResultItem = {
+  name: string;
+  url: string;
+  source: "local" | "session";
+  sessionFileId?: string;
+};
 
 interface ToolPageProps {
   icon: string;
@@ -31,9 +37,9 @@ interface ToolPageProps {
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
-function revokeBlobUrls(results: { name: string; url: string }[]): void {
+function revokeBlobUrls(results: ResultItem[]): void {
   for (const result of results) {
-    if (result.url.startsWith("blob:")) {
+    if (result.source === "local" && result.url.startsWith("blob:")) {
       URL.revokeObjectURL(result.url);
     }
   }
@@ -51,21 +57,26 @@ function ToolPageInner({
   tip,
   payment,
 }: ToolPageProps) {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [files, setFiles] = useState<File[]>([]);
   const [drag, setDrag] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<{ name: string; url: string }[]>([]);
+  const [results, setResults] = useState<ResultItem[]>([]);
   const [cloudUrls, setCloudUrls] = useState<Record<string, string>>({});
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [redirectingToCheckout, setRedirectingToCheckout] = useState(false);
   const [downloadAuthorized, setDownloadAuthorized] = useState(false);
   const [downloadToken, setDownloadToken] = useState<string | null>(null);
+  const [checkoutSessionToken, setCheckoutSessionToken] = useState<string | null>(
+    null,
+  );
   const [freeUsesConsumed, setFreeUsesConsumed] = useState(0);
   const [freeUnlockActive, setFreeUnlockActive] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
-  const latestResultsRef = useRef<{ name: string; url: string }[]>([]);
+  const [rehydratingSession, setRehydratingSession] = useState(false);
+  const latestResultsRef = useRef<ResultItem[]>([]);
   const acceptedExtensions = useRef(
     accept
       .split(",")
@@ -80,6 +91,8 @@ function ToolPageInner({
     (paymentEnabled && payment?.planId
       ? `neo:download-authorization:${payment.planId}`
       : "");
+  const paymentTokenStorageKey =
+    paymentEnabled && payment?.planId ? `neo:download-token:${payment.planId}` : "";
   const freeAllowanceStorageKey =
     freeAllowance?.storageKey ||
     (paymentEnabled && payment?.planId && freeAllowance
@@ -134,6 +147,7 @@ function ToolPageInner({
 
       setFreeUnlockActive(false);
       setCopiedLink(null);
+      setCheckoutSessionToken(null);
       setFiles((prev) => (multi ? [...prev, ...validFiles] : [validFiles[0]]));
       clearResults();
       setError("");
@@ -183,23 +197,47 @@ function ToolPageInner({
   useEffect(() => {
     if (!paymentEnabled || !paymentStorageKey) {
       setDownloadAuthorized(false);
+      setDownloadToken(null);
       return;
     }
+
+    let authorized = false;
+    let restoredToken: string | null = null;
 
     try {
       const raw = window.localStorage.getItem(paymentStorageKey);
       const expiresAt = raw ? Number(raw) : 0;
       if (Number.isFinite(expiresAt) && expiresAt > Date.now()) {
-        setDownloadAuthorized(true);
-        return;
+        authorized = true;
+      } else {
+        window.localStorage.removeItem(paymentStorageKey);
       }
-      window.localStorage.removeItem(paymentStorageKey);
+
+      if (paymentTokenStorageKey) {
+        const rawToken = window.localStorage.getItem(paymentTokenStorageKey);
+        if (rawToken) {
+          const parsed = JSON.parse(rawToken) as {
+            token?: string;
+            expiresAt?: number;
+          };
+          if (
+            parsed?.token &&
+            typeof parsed.expiresAt === "number" &&
+            parsed.expiresAt > Date.now()
+          ) {
+            restoredToken = parsed.token;
+          } else {
+            window.localStorage.removeItem(paymentTokenStorageKey);
+          }
+        }
+      }
     } catch {
       // Ignore localStorage failures and require a new payment attempt.
     }
 
-    setDownloadAuthorized(false);
-  }, [paymentEnabled, paymentStorageKey]);
+    setDownloadAuthorized(authorized);
+    setDownloadToken(restoredToken);
+  }, [paymentEnabled, paymentStorageKey, paymentTokenStorageKey]);
 
   useEffect(() => {
     if (!freeAllowance || !freeAllowanceStorageKey) {
@@ -218,8 +256,9 @@ function ToolPageInner({
 
   const handlePaymentApproved = useCallback(
     (data?: { downloadToken?: string }) => {
+      const expiresAt = Date.now() + paymentTtlMs;
+
       if (paymentEnabled && paymentStorageKey) {
-        const expiresAt = Date.now() + paymentTtlMs;
         try {
           window.localStorage.setItem(paymentStorageKey, String(expiresAt));
         } catch {
@@ -229,15 +268,88 @@ function ToolPageInner({
 
       if (data?.downloadToken) {
         setDownloadToken(data.downloadToken);
+        if (paymentTokenStorageKey) {
+          try {
+            window.localStorage.setItem(
+              paymentTokenStorageKey,
+              JSON.stringify({
+                token: data.downloadToken,
+                expiresAt,
+              }),
+            );
+          } catch {
+            // Ignore storage failures and keep the token in memory.
+          }
+        }
       }
 
       setDownloadAuthorized(true);
       setFreeUnlockActive(false);
-      setCheckoutOpen(false);
       setError("");
     },
-    [paymentEnabled, paymentStorageKey, paymentTtlMs],
+    [paymentEnabled, paymentStorageKey, paymentTokenStorageKey, paymentTtlMs],
   );
+
+  useEffect(() => {
+    if (!paymentEnabled) return;
+
+    const sessionParam = searchParams.get("checkoutSession");
+    const queryDownloadToken = searchParams.get("downloadToken");
+
+    if (sessionParam) {
+      setCheckoutSessionToken(sessionParam);
+      setRehydratingSession(true);
+
+      fetch(`/api/checkout-session?session=${encodeURIComponent(sessionParam)}`, {
+        method: "GET",
+        cache: "no-store",
+      })
+        .then(async (response) => {
+          const data = await response.json().catch(() => null);
+          if (!response.ok || !data || !Array.isArray(data.files)) {
+            throw new Error("Sessão de checkout inválida ou expirada.");
+          }
+          setResults((previous) => {
+            revokeBlobUrls(previous);
+            return data.files.map(
+              (file: { id?: unknown; name?: unknown }, index: number) => ({
+                name:
+                  typeof file.name === "string"
+                    ? file.name
+                    : `arquivo-${index + 1}`,
+                url: `session:${index}`,
+                source: "session" as const,
+                sessionFileId:
+                  typeof file.id === "string" ? file.id : String(index),
+              }),
+            );
+          });
+          setFiles([]);
+          setCloudUrls({});
+          setError("");
+        })
+        .catch((sessionError) => {
+          setError(
+            sessionError instanceof Error
+              ? sessionError.message
+              : "Falha ao recuperar o arquivo do checkout.",
+          );
+        })
+        .finally(() => setRehydratingSession(false));
+    }
+
+    if (queryDownloadToken) {
+      handlePaymentApproved({ downloadToken: queryDownloadToken });
+
+      try {
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.delete("downloadToken");
+        window.history.replaceState({}, "", currentUrl.toString());
+      } catch {
+        // Ignore URL cleanup failures.
+      }
+    }
+  }, [handlePaymentApproved, paymentEnabled, searchParams]);
 
   const handleProcess = async () => {
     if (!files.length) return;
@@ -250,7 +362,10 @@ function ToolPageInner({
       const processed = await onProcess(files);
       setResults((previous) => {
         revokeBlobUrls(previous);
-        return processed;
+        return processed.map((item) => ({
+          ...item,
+          source: "local" as const,
+        }));
       });
 
       if (shouldUnlockForFree && freeAllowance && freeAllowanceStorageKey) {
@@ -275,23 +390,129 @@ function ToolPageInner({
     }
   };
 
-  const uploadToCloud = async (res: { name: string; url: string }) => {
-    setUploadingKey(res.url);
+  const fetchProtectedResultBlob = useCallback(
+    async (result: ResultItem): Promise<Blob> => {
+      if (result.source === "local") {
+        const response = await fetch(result.url, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Falha ao ler arquivo processado.");
+        }
+        return response.blob();
+      }
+
+      if (!checkoutSessionToken || !downloadToken || !result.sessionFileId) {
+        throw new Error("Sessão ou autorização de download indisponível.");
+      }
+
+      const response = await fetch(
+        `/api/checkout-session/download?session=${encodeURIComponent(
+          checkoutSessionToken,
+        )}&file=${encodeURIComponent(result.sessionFileId)}`,
+        {
+          method: "GET",
+          headers: {
+            "x-download-token": downloadToken,
+          },
+          cache: "no-store",
+        },
+      );
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(
+          payload?.error || "Falha ao recuperar arquivo protegido.",
+        );
+      }
+
+      return response.blob();
+    },
+    [checkoutSessionToken, downloadToken],
+  );
+
+  const createCheckoutSessionAndRedirect = useCallback(async () => {
+    if (!paymentEnabled || !payment || !results.length) return;
+
+    if (
+      checkoutSessionToken &&
+      results.every((result) => result.source === "session")
+    ) {
+      window.location.assign(
+        `/checkout?plan=${encodeURIComponent(payment.planId)}&session=${encodeURIComponent(checkoutSessionToken)}`,
+      );
+      return;
+    }
+
+    setRedirectingToCheckout(true);
     setError("");
 
     try {
-      if (!res.url.startsWith("blob:")) {
-        throw new Error("URL de resultado inválida.");
-      }
-
-      const response = await fetch(res.url, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error("Falha ao ler arquivo processado.");
-      }
-
-      const blob = await response.blob();
       const formData = new FormData();
-      formData.append("file", blob, res.name);
+      formData.append("planId", payment.planId);
+      formData.append("returnToPath", pathname);
+
+      for (const result of results) {
+        const blob = await fetchProtectedResultBlob(result);
+        formData.append("file", blob, result.name);
+      }
+
+      const response = await fetch("/api/checkout-session", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = (await response.json().catch(() => null)) as
+        | { session?: string; checkoutUrl?: string; error?: string }
+        | null;
+
+      if (!response.ok || !data?.checkoutUrl || !data.session) {
+        throw new Error(
+          data?.error || "Falha ao preparar a compra para este download.",
+        );
+      }
+
+      setCheckoutSessionToken(data.session);
+      window.location.assign(data.checkoutUrl);
+    } catch (sessionError) {
+      setError(
+        sessionError instanceof Error
+          ? sessionError.message
+          : "Erro ao preparar checkout do download.",
+      );
+    } finally {
+      setRedirectingToCheckout(false);
+    }
+  }, [
+    checkoutSessionToken,
+    fetchProtectedResultBlob,
+    pathname,
+    payment,
+    paymentEnabled,
+    results,
+  ]);
+
+  const triggerProtectedDownload = useCallback(
+    async (result: ResultItem) => {
+      const blob = await fetchProtectedResultBlob(result);
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = result.name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    },
+    [fetchProtectedResultBlob],
+  );
+
+  const uploadToCloud = async (result: ResultItem) => {
+    setUploadingKey(result.url);
+    setError("");
+
+    try {
+      const blob = await fetchProtectedResultBlob(result);
+      const formData = new FormData();
+      formData.append("file", blob, result.name);
 
       const uploadHeaders: Record<string, string> = {};
       if (downloadToken) {
@@ -309,7 +530,7 @@ function ToolPageInner({
       if (!data.url) throw new Error("Upload concluído sem URL.");
       const publicUrl = data.url;
 
-      setCloudUrls((previous) => ({ ...previous, [res.url]: publicUrl }));
+      setCloudUrls((previous) => ({ ...previous, [result.url]: publicUrl }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro no storage serverless.");
     } finally {
@@ -332,8 +553,10 @@ function ToolPageInner({
     setError("");
     setUploadingKey(null);
     setDownloadToken(null);
+    setCheckoutSessionToken(null);
     setFreeUnlockActive(false);
     setCopiedLink(null);
+    setRehydratingSession(false);
   };
 
   return (
@@ -674,12 +897,33 @@ function ToolPageInner({
                     </strong>
                     . Autorização válida por 1 hora neste dispositivo.
                   </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <Link
+                      href={
+                        checkoutSessionToken
+                          ? `/checkout?plan=${payment.planId}&session=${encodeURIComponent(checkoutSessionToken)}`
+                          : `/checkout?plan=${payment.planId}`
+                      }
+                      style={{
+                        color: "var(--neo-green)",
+                        textDecoration: "none",
+                        fontSize: 13,
+                      }}
+                    >
+                      Ver detalhes comerciais e políticas deste plano
+                    </Link>
+                  </div>
                   <button
-                    onClick={() => setCheckoutOpen(true)}
+                    onClick={() => {
+                      void createCheckoutSessionAndRedirect();
+                    }}
                     className="btn-primary"
                     style={{ justifyContent: "center", width: "100%" }}
+                    disabled={redirectingToCheckout || rehydratingSession}
                   >
-                    ⚡ Liberar download agora
+                    {redirectingToCheckout
+                      ? "Preparando compra..."
+                      : "⚡ Liberar download agora"}
                   </button>
                 </div>
               )}
@@ -708,14 +952,31 @@ function ToolPageInner({
                     }}
                   >
                     {isUnlocked ? (
-                      <a
-                        href={r.url}
-                        download={r.name}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (r.source === "local") {
+                            const anchor = document.createElement("a");
+                            anchor.href = r.url;
+                            anchor.download = r.name;
+                            document.body.appendChild(anchor);
+                            anchor.click();
+                            anchor.remove();
+                            return;
+                          }
+                          void triggerProtectedDownload(r).catch((downloadError) => {
+                            setError(
+                              downloadError instanceof Error
+                                ? downloadError.message
+                                : "Falha ao baixar arquivo protegido.",
+                            );
+                          });
+                        }}
                         className="btn-primary"
                         style={{ justifyContent: "center" }}
                       >
                         ⬇️ Baixar {r.name}
-                      </a>
+                      </button>
                     ) : (
                       <div
                         style={{
@@ -809,18 +1070,6 @@ function ToolPageInner({
         )}
       </div>
 
-      {paymentEnabled && payment && (
-        <CheckoutModal
-          isOpen={checkoutOpen}
-          onClose={() => setCheckoutOpen(false)}
-          planId={payment.planId}
-          planName={payment.planName}
-          planPrice={payment.planPrice}
-          onPaid={(data) =>
-            handlePaymentApproved({ downloadToken: data.downloadToken })
-          }
-        />
-      )}
     </main>
   );
 }

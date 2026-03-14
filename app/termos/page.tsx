@@ -28,6 +28,7 @@ export default function TermosPage() {
           paragraphs: [
             "Ferramentas, downloads ou extensões de uso sujeitos a cobrança deixam a condição comercial visível no fluxo. Quando houver franquia gratuita, ela segue os limites expostos na própria interface.",
             "Autorizações liberadas após pagamento são temporárias e podem ficar vinculadas ao dispositivo, sessão ou token operacional conforme o fluxo aplicável.",
+            "Solicitações de cancelamento, revisão comercial, contestação de cobrança ou análise de reembolso devem ser enviadas para neo@neoprotocol.space. Cada caso é avaliado conforme natureza digital da entrega, estágio de consumo do serviço e obrigações aplicáveis.",
             "Buscamos alta disponibilidade, mas o serviço pode passar por manutenção, atualização, limitação temporária ou indisponibilidade parcial sem aviso prévio em situações operacionais urgentes.",
           ],
         },
