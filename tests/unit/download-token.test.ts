@@ -21,7 +21,8 @@ type DownloadTokenGlobal = typeof globalThis & {
 
 describe("download tokens", () => {
   beforeEach(() => {
-    process.env.DOWNLOAD_TOKEN_SECRET = "test-secret";
+    // Use a 32+ character secret to meet security requirements
+    process.env.DOWNLOAD_TOKEN_SECRET = "test-secret-that-is-at-least-32-characters-long";
     (globalThis as DownloadTokenGlobal).__neoConvertDownloadTokens?.clear();
   });
 

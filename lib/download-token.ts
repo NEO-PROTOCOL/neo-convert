@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "crypto";
+import { SECURITY } from "./constants";
 
 // TODO: Like the rate limiter, this in-memory store resets on cold starts.
 // For production, migrate to Vercel KV / Upstash Redis.
@@ -21,7 +22,7 @@ if (!global.__neoConvertDownloadTokens) {
     global.__neoConvertDownloadTokens = tokens;
 }
 
-const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const TOKEN_TTL_MS = SECURITY.TOKEN_TTL_MS;
 const MAX_TOKENS = 10_000;
 
 function pruneExpired(): void {
@@ -35,7 +36,19 @@ function pruneExpired(): void {
 }
 
 function getSecret(): string {
-    return process.env.DOWNLOAD_TOKEN_SECRET || process.env.CRON_SECRET || "neo-convert-fallback-secret";
+    const secret = process.env.DOWNLOAD_TOKEN_SECRET;
+    if (!secret) {
+        throw new Error(
+            "DOWNLOAD_TOKEN_SECRET environment variable is required. " +
+            "Please set it in your .env.local file for security."
+        );
+    }
+    if (secret.length < SECURITY.MIN_SECRET_LENGTH) {
+        throw new Error(
+            `DOWNLOAD_TOKEN_SECRET must be at least ${SECURITY.MIN_SECRET_LENGTH} characters long for security.`
+        );
+    }
+    return secret;
 }
 
 export function createDownloadToken(correlationID: string, planId: string): string {

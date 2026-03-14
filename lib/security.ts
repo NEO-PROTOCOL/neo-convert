@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-
-const SIMPLE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { EMAIL_REGEX, SECURITY, APP_INFO } from "./constants";
 
 export function getClientIp(req: NextRequest): string {
     // Prefer Vercel's built-in IP detection (not user-spoofable).
@@ -47,8 +46,8 @@ export function normalizeText(input: unknown, maxLength: number): string | null 
 export function normalizeEmail(input: unknown): string | null {
     if (typeof input !== "string") return null;
     const email = input.trim().toLowerCase();
-    if (!email || email.length > 254) return null;
-    if (!SIMPLE_EMAIL_REGEX.test(email)) return null;
+    if (!email || email.length > SECURITY.MAX_EMAIL_LENGTH) return null;
+    if (!EMAIL_REGEX.test(email)) return null;
     return email;
 }
 
@@ -61,7 +60,7 @@ export function escapeHtml(input: string): string {
         .replace(/'/g, "&#39;");
 }
 
-export function safeFilename(input: string, fallback = "arquivo"): string {
+export function safeFilename(input: string, fallback = APP_INFO.DEFAULT_FILENAME_FALLBACK): string {
     const extension = input.includes(".") ? input.split(".").pop() ?? "" : "";
     const baseName = input.includes(".")
         ? input.slice(0, input.lastIndexOf("."))
@@ -72,7 +71,7 @@ export function safeFilename(input: string, fallback = "arquivo"): string {
         .replace(/[^\w\s-]/g, "")
         .trim()
         .replace(/\s+/g, "-")
-        .slice(0, 80);
+        .slice(0, SECURITY.MAX_FILENAME_LENGTH);
 
     const safeBase = sanitizedBase || fallback;
     const safeExt = extension
@@ -84,7 +83,7 @@ export function safeFilename(input: string, fallback = "arquivo"): string {
 }
 
 export function resolvePublicAppUrl(value: string | undefined): string {
-    const fallback = "https://neo-convert.site";
+    const fallback = APP_INFO.DEFAULT_URL;
     if (!value) return fallback;
 
     try {
