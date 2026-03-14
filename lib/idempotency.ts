@@ -32,13 +32,20 @@ if (!global.__neoConvertIdempotencyStore) {
 
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_ENTRIES = 10_000;
+const PRUNE_INTERVAL = 100; // prune every N calls regardless of store size
+
+let pruneCallCount = 0;
 
 /**
- * Prune expired entries to prevent memory bloat
+ * Prune expired entries to prevent memory bloat.
+ * Runs every PRUNE_INTERVAL calls, or immediately when store exceeds MAX_ENTRIES.
  */
 function pruneExpired(): void {
-  if (store.size <= MAX_ENTRIES) return;
-  
+  pruneCallCount++;
+  const shouldPrune = pruneCallCount >= PRUNE_INTERVAL || store.size > MAX_ENTRIES;
+  if (!shouldPrune) return;
+
+  pruneCallCount = 0;
   const now = Date.now();
   for (const [key, entry] of store.entries()) {
     if (entry.expiresAt <= now) {
@@ -182,6 +189,7 @@ export async function withIdempotency(
  */
 export function clearIdempotencyCache(): void {
   store.clear();
+  pruneCallCount = 0;
 }
 
 /**
