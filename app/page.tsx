@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import ToolGrid from "@/components/ToolGrid";
 import Pricing from "@/components/Pricing";
 import Footer from "@/components/Footer";
+import UploadZone from "@/components/UploadZone";
 
 export default function Home() {
   return (
@@ -214,13 +215,14 @@ export default function Home() {
           {/* PRICING */}
           <section style={{ paddingBottom: 100 }} id="precos">
             <div className="container">
+              <UploadZone />
               <div style={{ marginBottom: 48, textAlign: "center" }}>
                 <span
                   className="tag tag-green"
                   style={{ marginBottom: 12, display: "inline-block" }}
                 >
                   Planos
-                </span>
+                </span
                 <h2
                   style={{
                     fontSize: "clamp(26px, 4vw, 42px)",
