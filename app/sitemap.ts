@@ -11,6 +11,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
         'convert-pdf',
         'pdf-to-word',
         'sign-pdf',
+        'rotate-pdf',
+        'delete-pages',
+        'word-to-pdf',
+        'excel-to-pdf',
+        'protect-pdf',
+        'ai-summary',
+        'compress-image',
     ]
 
     return [
