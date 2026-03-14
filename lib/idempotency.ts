@@ -110,7 +110,7 @@ export function getCachedResponse(key: string): NextResponse | null {
 /**
  * Cache a response for the given idempotency key
  */
-export function cacheResponse(key: string, response: NextResponse): void {
+export async function cacheResponse(key: string, response: NextResponse): Promise<void> {
   pruneExpired();
   
   // Extract relevant headers (skip sensitive ones)
@@ -124,8 +124,9 @@ export function cacheResponse(key: string, response: NextResponse): void {
     }
   }
   
-  // Clone the response to read the body
-  response.clone().json().then((body) => {
+  // Clone the response and await reading the body before storing
+  try {
+    const body = await response.clone().json();
     store.set(key, {
       response: {
         status: response.status,
@@ -135,10 +136,9 @@ export function cacheResponse(key: string, response: NextResponse): void {
       createdAt: Date.now(),
       expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
     });
-  }).catch(() => {
+  } catch {
     // If we can't parse JSON, don't cache
-    // This is fine - idempotency is best-effort
-  });
+  }
 }
 
 /**
@@ -177,7 +177,7 @@ export async function withIdempotency(
   
   // Cache successful responses only (2xx status codes)
   if (response.status >= 200 && response.status < 300) {
-    cacheResponse(key, response);
+    await cacheResponse(key, response);
   }
   
   return response;
