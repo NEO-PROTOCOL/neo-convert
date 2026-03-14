@@ -54,6 +54,7 @@ describe("POST /api/checkout", () => {
         planId: "pro",
         name: "Neo",
         email: "neo@example.com",
+        cpf: "39053344705",
       },
       {
         origin: "https://attacker.site",
@@ -76,6 +77,7 @@ describe("POST /api/checkout", () => {
         planId: "starter",
         name: "Neo",
         email: "neo@example.com",
+        cpf: "39053344705",
       }),
     );
 
@@ -100,6 +102,7 @@ describe("POST /api/checkout", () => {
         planId: "pro",
         name: "Neo",
         email: "neo@example.com",
+        cpf: "39053344705",
       }),
     );
 
@@ -135,6 +138,7 @@ describe("POST /api/checkout", () => {
         planId: "business",
         name: "Neo MellO",
         email: "NEO@example.com",
+        cpf: "39053344705",
       }),
     );
     const payload = await response.json();
@@ -154,6 +158,7 @@ describe("POST /api/checkout", () => {
         headers: expect.objectContaining({
           "x-api-key": "flowpay-secret",
         }),
+        body: expect.stringContaining("\"document\":\"39053344705\""),
       }),
     );
     expect(sendEmailMock).not.toHaveBeenCalled();

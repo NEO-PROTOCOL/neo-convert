@@ -24,6 +24,7 @@ const PAID_STATUSES = new Set([
   "APPROVED",
   "SETTLED",
 ]);
+const KNOWN_PLAN_IDS = new Set(["starter", "pro", "business"]);
 const sentPaymentEmails = new Map<string, number>();
 
 function markEmailSentIfFirst(chargeId: string): boolean {
@@ -196,6 +197,7 @@ export async function GET(
   const paid = PAID_STATUSES.has(status);
   const paidAt = typeof data.paid_at === "string" ? data.paid_at : null;
   let paymentEmailSent = false;
+  const requestedPlanId = req.nextUrl.searchParams.get("planId");
 
   // Gatilho 2: confirmação de pagamento (somente quando status pago)
   if (paid && process.env.MAILTRAP_API_TOKEN) {
@@ -258,8 +260,8 @@ export async function GET(
   // The client must present this token to upload-to-cloud to get a cloud link.
   // Derive the plan from the payment status (if available) to avoid hardcoding "starter".
   const plan =
-    status && typeof status === "object" && "plan" in (status as any) && typeof (status as any).plan === "string"
-      ? (status as any).plan
+    requestedPlanId && KNOWN_PLAN_IDS.has(requestedPlanId)
+      ? requestedPlanId
       : "starter";
 
   const downloadToken = paid

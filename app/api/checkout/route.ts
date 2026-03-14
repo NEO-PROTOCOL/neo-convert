@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/mailtrap";
+import { normalizeCpf } from "@/lib/cpf";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import {
   escapeHtml,
@@ -147,12 +148,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let payload: { planId?: unknown; name?: unknown; email?: unknown };
+    let payload: {
+      planId?: unknown;
+      name?: unknown;
+      email?: unknown;
+      cpf?: unknown;
+    };
     try {
       payload = (await req.json()) as {
         planId?: unknown;
         name?: unknown;
         email?: unknown;
+        cpf?: unknown;
       };
     } catch {
       return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
@@ -161,10 +168,11 @@ export async function POST(req: NextRequest) {
       typeof payload.planId === "string" ? payload.planId.trim() : "";
     const name = normalizeText(payload.name, 80);
     const email = normalizeEmail(payload.email);
+    const cpf = normalizeCpf(payload.cpf);
 
-    if (!planId || !name || !email) {
+    if (!planId || !name || !email || !cpf) {
       return NextResponse.json(
-        { error: "planId, name e email são obrigatórios" },
+        { error: "planId, name, email e cpf são obrigatórios" },
         { status: 400 },
       );
     }
@@ -216,6 +224,12 @@ export async function POST(req: NextRequest) {
             product_id: flowpayProductId,
             customer_name: name,
             customer_email: email,
+            customer_cpf: cpf,
+            customer_document: cpf,
+            customer_document_type: "CPF",
+            customer_ref: cpf,
+            document: cpf,
+            document_type: "CPF",
           }),
         },
         FLOWPAY_TIMEOUT_MS,

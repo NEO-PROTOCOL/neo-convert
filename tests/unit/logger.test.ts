@@ -73,8 +73,9 @@ describe("logger", () => {
   });
 
   it("respects log levels", () => {
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
+    const env = process.env as Record<string, string | undefined>;
+    const originalEnv = env.NODE_ENV;
+    env.NODE_ENV = "production";
     
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     
@@ -82,7 +83,7 @@ describe("logger", () => {
     
     expect(consoleSpy).not.toHaveBeenCalled();
     
-    process.env.NODE_ENV = originalEnv;
+    env.NODE_ENV = originalEnv;
     consoleSpy.mockRestore();
   });
 });
