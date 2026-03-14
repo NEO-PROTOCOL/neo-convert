@@ -222,7 +222,7 @@ export default function Home() {
                   style={{ marginBottom: 12, display: "inline-block" }}
                 >
                   Planos
-                </span
+                </span>
                 <h2
                   style={{
                     fontSize: "clamp(26px, 4vw, 42px)",

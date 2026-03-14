@@ -70,14 +70,16 @@ function redactSensitiveData(data: unknown): unknown {
  */
 function logEntry(level: LogLevel, message: string, context?: LogContext): void {
   const timestamp = new Date().toISOString();
-  const redactedContext = context ? redactSensitiveData(context) : undefined;
+  const redactedContext = context ? (redactSensitiveData(context) as LogContext) : undefined;
 
-  const entry = {
+  const entry: Record<string, unknown> = {
     timestamp,
     level,
     message,
-    ...(redactedContext && { context: redactedContext }),
   };
+  if (redactedContext) {
+    entry.context = redactedContext;
+  }
 
   // In production, this could be sent to a logging service
   // For now, we use console with structured JSON
