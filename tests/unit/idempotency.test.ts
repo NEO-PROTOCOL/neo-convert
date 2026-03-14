@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 import {
   getIdempotencyKey,
@@ -8,6 +8,7 @@ import {
   cacheResponse,
   withIdempotency,
   clearIdempotencyCache,
+  getIdempotencyCacheStats,
 } from "@/lib/idempotency";
 
 describe("idempotency", () => {
@@ -148,6 +149,45 @@ describe("idempotency", () => {
 
       const cached = getCachedResponse(key);
       expect(cached).toBeNull(); // Should not cache error responses
+    });
+  });
+
+  describe("pruneExpired", () => {
+    it("prunes expired entries after PRUNE_INTERVAL calls regardless of store size", async () => {
+      // Cache an entry with real timers
+      const key = "test-key-prune-12345";
+      const response = NextResponse.json({ ok: true }, { status: 200 });
+      cacheResponse(key, response);
+
+      // Wait for async caching
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Verify entry is active
+      const statsBeforePrune = getIdempotencyCacheStats();
+      expect(statsBeforePrune.active).toBe(1);
+      expect(statsBeforePrune.expired).toBe(0);
+
+      // Mock Date.now to return a time 25 hours in the future so entry appears expired
+      const futureTime = Date.now() + 25 * 60 * 60 * 1000;
+      const dateSpy = vi.spyOn(Date, "now").mockReturnValue(futureTime);
+
+      try {
+        // Verify entry now appears expired
+        const statsExpired = getIdempotencyCacheStats();
+        expect(statsExpired.expired).toBe(1);
+
+        // Call getCachedResponse 100 times to trigger the PRUNE_INTERVAL
+        for (let i = 0; i < 100; i++) {
+          getCachedResponse(`non-existent-${i}`);
+        }
+
+        // The expired entry should have been pruned
+        const statsAfterPrune = getIdempotencyCacheStats();
+        expect(statsAfterPrune.total).toBe(0);
+        expect(statsAfterPrune.expired).toBe(0);
+      } finally {
+        dateSpy.mockRestore();
+      }
     });
   });
 });
