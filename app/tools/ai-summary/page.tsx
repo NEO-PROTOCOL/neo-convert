@@ -83,7 +83,7 @@ const useOcr = (imageUrl: string | null) => {
   const hasAttempted = useRef(false);
 
   const performOcr = useCallback(async () => {
-    if (!imageUrl || loading || extractedText) return;
+    if (!imageUrl || loading || extractedText !== null) return;
 
     setLoading(true);
     setError(null);
@@ -109,9 +109,16 @@ const useOcr = (imageUrl: string | null) => {
     }
   }, [imageUrl, loading, extractedText]);
 
+  // Reseta tentativa quando a URL muda
+  useEffect(() => {
+    hasAttempted.current = false;
+    setExtractedText(null);
+    setError(null);
+  }, [imageUrl]);
+
   // Dispara automaticamente quando imageUrl muda, mas apenas uma vez por URL
   useEffect(() => {
-    if (imageUrl && !hasAttempted.current && !loading && !extractedText) {
+    if (imageUrl && !hasAttempted.current && !loading && extractedText === null) {
       performOcr();
     }
   }, [imageUrl, performOcr, loading, extractedText]);
@@ -128,7 +135,7 @@ function AiSummaryContent() {
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState error={error} onRetry={retry} />;
-  if (extractedText) return <SuccessState text={extractedText} />;
+  if (extractedText !== null) return <SuccessState text={extractedText} />;
 
   return (
     <p style={{ textAlign: "center", color: "var(--text-secondary)" }}>

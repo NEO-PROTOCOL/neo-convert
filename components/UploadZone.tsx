@@ -31,15 +31,9 @@ export default function UploadZone() {
       const formData = new FormData();
       formData.append("file", file);
 
-      // Detect mobile device
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
       const res = await fetch("/api/upload-to-cloud", {
         method: "POST",
         body: formData,
-        headers: {
-          "x-is-mobile": isMobile ? "true" : "false",
-        },
       });
 
       if (!res.ok) {
@@ -284,7 +278,9 @@ export default function UploadZone() {
               fontFamily: "'JetBrains Mono', monospace",
             }}
           >
-            🔒 Seus arquivos são criptografados e deletados em 1 hora
+            🔒 Seus arquivos são criptografados e deletados em até 24 horas
+            <br />
+            (desktop: 1 hora; mobile: até 24 horas)
           </p>
         </>
       )}

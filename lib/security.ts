@@ -99,3 +99,12 @@ export function resolvePublicAppUrl(value: string | undefined): string {
         return fallback;
     }
 }
+
+/**
+ * Heuristic check if the request comes from a mobile device
+ * based on the User-Agent header.
+ */
+export function isMobileRequest(req: NextRequest): boolean {
+    const ua = req.headers.get("user-agent") || "";
+    return /iPhone|iPad|iPod|Android|Mobile/i.test(ua);
+}

@@ -7,7 +7,8 @@ import { logger } from "./logger";
 
 // Configurações constantes
 const DEFAULT_RAPIDAPI_HOST = "ocr-scanner.p.rapidapi.com";
-const SUPPORTED_EXTENSIONS = [".jpg", ".jpeg", ".png"] as const;
+const SUPPORTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff", ".tif"] as const;
+const OCR_TIMEOUT_MS = 30000;
 
 // Tipagem da resposta da API (baseada na documentação do RapidAPI)
 interface OCRScanResponse {
@@ -16,6 +17,16 @@ interface OCRScanResponse {
   error?: string;
   status?: string;
   [key: string]: unknown; // para flexibilidade caso a API retorne campos adicionais
+}
+
+// Auxiliar para ocultar tokens sensíveis em URLs de log
+function redactUrl(urlStr: string): string {
+  try {
+    const url = new URL(urlStr);
+    return `${url.protocol}//${url.hostname}${url.pathname}${url.search ? "?[REDACTED]" : ""}`;
+  } catch {
+    return "[INVALID URL]";
+  }
 }
 
 // Validação e cache das variáveis de ambiente
@@ -46,8 +57,12 @@ function extractTextFromResponse(data: OCRScanResponse): string {
  */
 export async function scanImageFromUrl(imageUrl: string): Promise<string> {
   const { apiKey, host } = getRapidApiConfig();
+  const redactedUrl = redactUrl(imageUrl);
 
   const url = `https://${host}/ScanImageFromURL?url=${encodeURIComponent(imageUrl)}`;
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), OCR_TIMEOUT_MS);
 
   const options = {
     method: "GET",
@@ -55,12 +70,14 @@ export async function scanImageFromUrl(imageUrl: string): Promise<string> {
       "x-rapidapi-key": apiKey,
       "x-rapidapi-host": host,
     },
+    signal: controller.signal,
   };
 
-  logger.info("Iniciando processamento de OCR", { imageUrl });
+  logger.info("Iniciando processamento de OCR", { imageUrl: redactedUrl });
 
   try {
     const response = await fetch(url, options);
+    clearTimeout(timeoutId);
 
     // Log do status para debug (sem expor dados sensíveis)
     logger.debug("Resposta da API OCR", {
@@ -91,21 +108,28 @@ export async function scanImageFromUrl(imageUrl: string): Promise<string> {
     const extractedText = extractTextFromResponse(data);
 
     if (!extractedText) {
-      logger.warn("OCR concluído mas nenhum texto foi detectado", { imageUrl });
+      logger.warn("OCR concluído mas nenhum texto foi detectado", { imageUrl: redactedUrl });
     } else {
       logger.info("OCR concluído com sucesso", {
         textLength: extractedText.length,
-        imageUrl,
+        imageUrl: redactedUrl,
       });
     }
 
     return extractedText;
   } catch (error) {
+    clearTimeout(timeoutId);
     // Relança o erro com contexto adicional, sem perder a stack original
     const message = error instanceof Error ? error.message : String(error);
+    
+    if (error instanceof Error && error.name === "AbortError") {
+      logger.error("Timeout no serviço de OCR", { imageUrl: redactedUrl });
+      throw new Error("O processamento da imagem demorou demais. Tente uma imagem menor.");
+    }
+
     logger.error("Erro inesperado no serviço de OCR", {
       error: message,
-      imageUrl,
+      imageUrl: redactedUrl,
     });
     throw error;
   }
