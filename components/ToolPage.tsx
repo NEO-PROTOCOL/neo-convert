@@ -14,12 +14,13 @@ interface ToolPageProps {
   icon: string;
   title: string;
   description: string;
-  accept: string;
-  acceptLabel: string;
+  accept?: string;
+  acceptLabel?: string;
   color: string;
-  onProcess: (files: File[]) => Promise<{ name: string; url: string }[]>;
+  onProcess?: (files: File[]) => Promise<{ name: string; url: string }[]>;
   multi?: boolean;
   tip?: string;
+  children?: React.ReactNode;
   payment?: {
     enabled: boolean;
     planId: string;
@@ -49,12 +50,13 @@ function ToolPageInner({
   icon,
   title,
   description,
-  accept,
-  acceptLabel,
+  accept = "",
+  acceptLabel = "",
   color,
   onProcess,
   multi = false,
   tip,
+  children,
   payment,
 }: ToolPageProps) {
   const pathname = usePathname();
@@ -69,9 +71,9 @@ function ToolPageInner({
   const [redirectingToCheckout, setRedirectingToCheckout] = useState(false);
   const [downloadAuthorized, setDownloadAuthorized] = useState(false);
   const [downloadToken, setDownloadToken] = useState<string | null>(null);
-  const [checkoutSessionToken, setCheckoutSessionToken] = useState<string | null>(
-    null,
-  );
+  const [checkoutSessionToken, setCheckoutSessionToken] = useState<
+    string | null
+  >(null);
   const [freeUsesConsumed, setFreeUsesConsumed] = useState(0);
   const [freeUnlockActive, setFreeUnlockActive] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
@@ -92,7 +94,9 @@ function ToolPageInner({
       ? `neo:download-authorization:${payment.planId}`
       : "");
   const paymentTokenStorageKey =
-    paymentEnabled && payment?.planId ? `neo:download-token:${payment.planId}` : "";
+    paymentEnabled && payment?.planId
+      ? `neo:download-token:${payment.planId}`
+      : "";
   const freeAllowanceStorageKey =
     freeAllowance?.storageKey ||
     (paymentEnabled && payment?.planId && freeAllowance
@@ -300,10 +304,13 @@ function ToolPageInner({
       setCheckoutSessionToken(sessionParam);
       setRehydratingSession(true);
 
-      fetch(`/api/checkout-session?session=${encodeURIComponent(sessionParam)}`, {
-        method: "GET",
-        cache: "no-store",
-      })
+      fetch(
+        `/api/checkout-session?session=${encodeURIComponent(sessionParam)}`,
+        {
+          method: "GET",
+          cache: "no-store",
+        },
+      )
         .then(async (response) => {
           const data = await response.json().catch(() => null);
           if (!response.ok || !data || !Array.isArray(data.files)) {
@@ -359,6 +366,7 @@ function ToolPageInner({
     setCopiedLink(null);
     clearResults();
     try {
+      if (!onProcess) return;
       const processed = await onProcess(files);
       setResults((previous) => {
         revokeBlobUrls(previous);
@@ -460,9 +468,11 @@ function ToolPageInner({
         body: formData,
       });
 
-      const data = (await response.json().catch(() => null)) as
-        | { session?: string; checkoutUrl?: string; error?: string }
-        | null;
+      const data = (await response.json().catch(() => null)) as {
+        session?: string;
+        checkoutUrl?: string;
+        error?: string;
+      } | null;
 
       if (!response.ok || !data?.checkoutUrl || !data.session) {
         throw new Error(
@@ -626,450 +636,474 @@ function ToolPageInner({
           </p>
         </header>
 
-        {/* Drop Zone */}
-        {!results.length && (
-          <label
-            className={`upload-zone ${drag ? "drag-active" : ""}`}
-            style={{ marginBottom: 24 }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDrag(true);
-            }}
-            onDragLeave={() => setDrag(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDrag(false);
-              addFiles(e.dataTransfer.files);
-            }}
-          >
-            <input
-              id="tool-file-input"
-              type="file"
-              accept={accept}
-              multiple={multi}
-              style={{ display: "none" }}
-              onChange={(e) => addFiles(e.target.files)}
-            />
-
-            {files.length > 0 ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 12,
+        {children ? (
+          <div style={{ marginTop: 24 }}>{children}</div>
+        ) : (
+          <>
+            {/* Drop Zone */}
+            {!results.length && (
+              <label
+                className={`upload-zone ${drag ? "drag-active" : ""}`}
+                style={{ marginBottom: 24 }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDrag(true);
+                }}
+                onDragLeave={() => setDrag(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDrag(false);
+                  addFiles(e.dataTransfer.files);
                 }}
               >
-                <div style={{ fontSize: 40 }}>📄</div>
-                <div>
-                  {files.map((f) => (
-                    <div
-                      key={`${f.name}-${f.lastModified}-${f.size}`}
-                      style={{ fontWeight: 600, color: "var(--text-primary)" }}
-                    >
-                      {f.name}
-                    </div>
-                  ))}
+                <input
+                  id="tool-file-input"
+                  type="file"
+                  accept={accept}
+                  multiple={multi}
+                  style={{ display: "none" }}
+                  onChange={(e) => addFiles(e.target.files)}
+                />
+
+                {files.length > 0 ? (
                   <div
                     style={{
-                      color: "var(--text-muted)",
-                      fontSize: 13,
-                      marginTop: 4,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 12,
                     }}
                   >
-                    {files.length > 1
-                      ? `${files.length} arquivos`
-                      : `${(files[0].size / 1024 / 1024).toFixed(2)} MB`}
+                    <div style={{ fontSize: 40 }}>📄</div>
+                    <div>
+                      {files.map((f) => (
+                        <div
+                          key={`${f.name}-${f.lastModified}-${f.size}`}
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--text-primary)",
+                          }}
+                        >
+                          {f.name}
+                        </div>
+                      ))}
+                      <div
+                        style={{
+                          color: "var(--text-muted)",
+                          fontSize: 13,
+                          marginTop: 4,
+                        }}
+                      >
+                        {files.length > 1
+                          ? `${files.length} arquivos`
+                          : `${(files[0].size / 1024 / 1024).toFixed(2)} MB`}
+                      </div>
+                    </div>
+                    <span
+                      style={{ color: color, fontSize: 13, fontWeight: 600 }}
+                    >
+                      Clique para trocar →
+                    </span>
                   </div>
-                </div>
-                <span style={{ color: color, fontSize: 13, fontWeight: 600 }}>
-                  Clique para trocar →
-                </span>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: "50%",
+                        background: "var(--bg-surface)",
+                        border: "2px solid var(--border-accent)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        margin: "0 auto 20px",
+                        fontSize: 28,
+                      }}
+                    >
+                      📄
+                    </div>
+                    <div
+                      style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}
+                    >
+                      {drag
+                        ? "Solte aqui"
+                        : `Arraste ${multi ? "os arquivos" : "o arquivo"}`}
+                    </div>
+                    <p
+                      style={{
+                        color: "var(--text-secondary)",
+                        fontSize: 14,
+                        marginBottom: 20,
+                      }}
+                    >
+                      {acceptLabel}
+                    </p>
+                    <div
+                      className="btn-primary"
+                      style={{ display: "inline-flex" }}
+                    >
+                      Selecionar
+                    </div>
+                  </>
+                )}
+              </label>
+            )}
+
+            {/* Tip */}
+            {tip && !files.length && !results.length && (
+              <div
+                style={{
+                  background: "var(--bg-surface)",
+                  border: "1px solid var(--border-subtle)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "12px 16px",
+                  fontSize: 13,
+                  color: "var(--text-muted)",
+                  marginBottom: 24,
+                }}
+              >
+                💡 {tip}
               </div>
-            ) : (
-              <>
-                <div
+            )}
+
+            {/* Error */}
+            {error && (
+              <div
+                style={{
+                  background: "rgba(255,45,85,0.1)",
+                  border: "1px solid rgba(255,45,85,0.3)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "12px 16px",
+                  fontSize: 14,
+                  color: "#ff2d55",
+                  marginBottom: 16,
+                }}
+              >
+                ⚠️ {error}
+              </div>
+            )}
+
+            {/* Action */}
+            {files.length > 0 && !results.length && onProcess && (
+              <div style={{ display: "grid", gap: 12 }}>
+                {freeAllowance ? (
+                  <div
+                    style={{
+                      background: freeUnlockAvailable
+                        ? "rgba(0,255,157,0.08)"
+                        : "rgba(255, 193, 7, 0.08)",
+                      border: freeUnlockAvailable
+                        ? "1px solid rgba(0,255,157,0.28)"
+                        : "1px solid rgba(255, 193, 7, 0.28)",
+                      borderRadius: "var(--radius-md)",
+                      padding: "12px 16px",
+                      fontSize: 13,
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    {freeUnlockAvailable ? (
+                      <>
+                        Esta execução entra na franquia gratuita. Restam{" "}
+                        <strong style={{ color: "var(--neo-green)" }}>
+                          {freeUsesRemaining}
+                        </strong>{" "}
+                        uso{freeUsesRemaining === 1 ? "" : "s"} neste
+                        dispositivo.
+                      </>
+                    ) : freeUsesRemaining > 0 && !freeEligibleByFileCount ? (
+                      <>
+                        A franquia gratuita cobre até{" "}
+                        <strong>{freeAllowance.maxFilesPerUse}</strong> arquivo
+                        {freeAllowance.maxFilesPerUse === 1 ? "" : "s"} por
+                        execução. Acima disso, o download segue para liberação
+                        paga.
+                      </>
+                    ) : (
+                      <>
+                        A franquia gratuita deste dispositivo foi consumida. O
+                        próximo download segue via liberação paga.
+                      </>
+                    )}
+                  </div>
+                ) : null}
+
+                <button
+                  id="tool-process-btn"
+                  onClick={handleProcess}
+                  disabled={loading}
+                  className="btn-primary"
                   style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: "50%",
-                    background: "var(--bg-surface)",
-                    border: "2px solid var(--border-accent)",
-                    display: "flex",
-                    alignItems: "center",
+                    width: "100%",
                     justifyContent: "center",
-                    margin: "0 auto 20px",
-                    fontSize: 28,
+                    opacity: loading ? 0.7 : 1,
                   }}
                 >
-                  📄
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-                  {drag
-                    ? "Solte aqui"
-                    : `Arraste ${multi ? "os arquivos" : "o arquivo"}`}
-                </div>
+                  {loading ? (
+                    <>
+                      <span
+                        style={{
+                          width: 16,
+                          height: 16,
+                          border: "2px solid rgba(0,0,0,0.3)",
+                          borderTopColor: "#000",
+                          borderRadius: "50%",
+                          animation: "spin 0.7s linear infinite",
+                          display: "inline-block",
+                        }}
+                      />
+                      Processando...
+                    </>
+                  ) : (
+                    `⚡ ${title}`
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Results */}
+            {results.length > 0 && (
+              <div
+                style={{
+                  background: "var(--bg-surface)",
+                  border: "1px solid var(--border-accent)",
+                  borderRadius: "var(--radius-xl)",
+                  padding: 32,
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+                <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>
+                  Pronto
+                </h2>
                 <p
                   style={{
                     color: "var(--text-secondary)",
                     fontSize: 14,
-                    marginBottom: 20,
+                    marginBottom: 24,
                   }}
                 >
-                  {acceptLabel}
+                  Seu arquivo foi processado com sucesso.
                 </p>
-                <div className="btn-primary" style={{ display: "inline-flex" }}>
-                  Selecionar
-                </div>
-              </>
-            )}
-          </label>
-        )}
 
-        {/* Tip */}
-        {tip && !files.length && !results.length && (
-          <div
-            style={{
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: "var(--radius-md)",
-              padding: "12px 16px",
-              fontSize: 13,
-              color: "var(--text-muted)",
-              marginBottom: 24,
-            }}
-          >
-            💡 {tip}
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div
-            style={{
-              background: "rgba(255,45,85,0.1)",
-              border: "1px solid rgba(255,45,85,0.3)",
-              borderRadius: "var(--radius-md)",
-              padding: "12px 16px",
-              fontSize: 14,
-              color: "#ff2d55",
-              marginBottom: 16,
-            }}
-          >
-            ⚠️ {error}
-          </div>
-        )}
-
-        {/* Action */}
-        {files.length > 0 && !results.length && (
-          <div style={{ display: "grid", gap: 12 }}>
-            {freeAllowance ? (
-              <div
-                style={{
-                  background: freeUnlockAvailable
-                    ? "rgba(0,255,157,0.08)"
-                    : "rgba(255, 193, 7, 0.08)",
-                  border: freeUnlockAvailable
-                    ? "1px solid rgba(0,255,157,0.28)"
-                    : "1px solid rgba(255, 193, 7, 0.28)",
-                  borderRadius: "var(--radius-md)",
-                  padding: "12px 16px",
-                  fontSize: 13,
-                  color: "var(--text-secondary)",
-                }}
-              >
-                {freeUnlockAvailable ? (
-                  <>
-                    Esta execução entra na franquia gratuita. Restam{" "}
-                    <strong style={{ color: "var(--neo-green)" }}>
-                      {freeUsesRemaining}
-                    </strong>{" "}
-                    uso{freeUsesRemaining === 1 ? "" : "s"} neste dispositivo.
-                  </>
-                ) : freeUsesRemaining > 0 && !freeEligibleByFileCount ? (
-                  <>
-                    A franquia gratuita cobre até{" "}
-                    <strong>{freeAllowance.maxFilesPerUse}</strong> arquivo
-                    {freeAllowance.maxFilesPerUse === 1 ? "" : "s"} por
-                    execução. Acima disso, o download segue para liberação paga.
-                  </>
-                ) : (
-                  <>
-                    A franquia gratuita deste dispositivo foi consumida. O
-                    próximo download segue via liberação paga.
-                  </>
-                )}
-              </div>
-            ) : null}
-
-            <button
-              id="tool-process-btn"
-              onClick={handleProcess}
-              disabled={loading}
-              className="btn-primary"
-              style={{
-                width: "100%",
-                justifyContent: "center",
-                opacity: loading ? 0.7 : 1,
-              }}
-            >
-              {loading ? (
-                <>
-                  <span
-                    style={{
-                      width: 16,
-                      height: 16,
-                      border: "2px solid rgba(0,0,0,0.3)",
-                      borderTopColor: "#000",
-                      borderRadius: "50%",
-                      animation: "spin 0.7s linear infinite",
-                      display: "inline-block",
-                    }}
-                  />
-                  Processando...
-                </>
-              ) : (
-                `⚡ ${title}`
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* Results */}
-        {results.length > 0 && (
-          <div
-            style={{
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border-accent)",
-              borderRadius: "var(--radius-xl)",
-              padding: 32,
-              textAlign: "center",
-            }}
-          >
-            <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>
-              Pronto
-            </h2>
-            <p
-              style={{
-                color: "var(--text-secondary)",
-                fontSize: 14,
-                marginBottom: 24,
-              }}
-            >
-              Seu arquivo foi processado com sucesso.
-            </p>
-
-            {paymentEnabled &&
-              !downloadAuthorized &&
-              !freeUnlockActive &&
-              payment && (
-                <div
-                  style={{
-                    marginBottom: 20,
-                    background: "rgba(255, 193, 7, 0.08)",
-                    border: "1px solid rgba(255, 193, 7, 0.35)",
-                    borderRadius: "var(--radius-md)",
-                    padding: "14px 16px",
-                    textAlign: "left",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "var(--text-primary)",
-                      marginBottom: 8,
-                      fontWeight: 700,
-                    }}
-                  >
-                    Download bloqueado até confirmação de pagamento.
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "var(--text-secondary)",
-                      marginBottom: 12,
-                    }}
-                  >
-                    Valor unitário:{" "}
-                    <strong style={{ color: "var(--neo-green)" }}>
-                      {payment.planPrice}
-                    </strong>
-                    . Autorização válida por 1 hora neste dispositivo.
-                  </div>
-                  <div style={{ marginBottom: 12 }}>
-                    <Link
-                      href={
-                        checkoutSessionToken
-                          ? `/checkout?plan=${payment.planId}&session=${encodeURIComponent(checkoutSessionToken)}`
-                          : `/checkout?plan=${payment.planId}`
-                      }
+                {paymentEnabled &&
+                  !downloadAuthorized &&
+                  !freeUnlockActive &&
+                  payment && (
+                    <div
                       style={{
-                        color: "var(--neo-green)",
-                        textDecoration: "none",
-                        fontSize: 13,
+                        marginBottom: 20,
+                        background: "rgba(255, 193, 7, 0.08)",
+                        border: "1px solid rgba(255, 193, 7, 0.35)",
+                        borderRadius: "var(--radius-md)",
+                        padding: "14px 16px",
+                        textAlign: "left",
                       }}
                     >
-                      Ver detalhes comerciais e políticas deste plano
-                    </Link>
-                  </div>
-                  <button
-                    onClick={() => {
-                      void createCheckoutSessionAndRedirect();
-                    }}
-                    className="btn-primary"
-                    style={{ justifyContent: "center", width: "100%" }}
-                    disabled={redirectingToCheckout || rehydratingSession}
-                  >
-                    {redirectingToCheckout
-                      ? "Preparando compra..."
-                      : "⚡ Liberar download agora"}
-                  </button>
-                </div>
-              )}
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-                marginBottom: 16,
-              }}
-            >
-              {results.map((r) => {
-                const publicLink = cloudUrls[r.url];
-                const isUploading = uploadingKey === r.url;
-                const isUnlocked =
-                  !paymentEnabled || downloadAuthorized || freeUnlockActive;
-
-                return (
-                  <div
-                    key={`${r.name}-${r.url}`}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 10,
-                    }}
-                  >
-                    {isUnlocked ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (r.source === "local") {
-                            const anchor = document.createElement("a");
-                            anchor.href = r.url;
-                            anchor.download = r.name;
-                            document.body.appendChild(anchor);
-                            anchor.click();
-                            anchor.remove();
-                            return;
-                          }
-                          void triggerProtectedDownload(r).catch((downloadError) => {
-                            setError(
-                              downloadError instanceof Error
-                                ? downloadError.message
-                                : "Falha ao baixar arquivo protegido.",
-                            );
-                          });
-                        }}
-                        className="btn-primary"
-                        style={{ justifyContent: "center" }}
-                      >
-                        ⬇️ Baixar {r.name}
-                      </button>
-                    ) : (
                       <div
                         style={{
-                          padding: "10px 12px",
-                          borderRadius: "var(--radius-md)",
-                          border: "1px solid var(--border-subtle)",
-                          color: "var(--text-muted)",
                           fontSize: 13,
+                          color: "var(--text-primary)",
+                          marginBottom: 8,
+                          fontWeight: 700,
                         }}
                       >
-                        Arquivo pronto: {r.name}
+                        Download bloqueado até confirmação de pagamento.
                       </div>
-                    )}
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "var(--text-secondary)",
+                          marginBottom: 12,
+                        }}
+                      >
+                        Valor unitário:{" "}
+                        <strong style={{ color: "var(--neo-green)" }}>
+                          {payment.planPrice}
+                        </strong>
+                        . Autorização válida por 1 hora neste dispositivo.
+                      </div>
+                      <div style={{ marginBottom: 12 }}>
+                        <Link
+                          href={
+                            checkoutSessionToken
+                              ? `/checkout?plan=${payment.planId}&session=${encodeURIComponent(checkoutSessionToken)}`
+                              : `/checkout?plan=${payment.planId}`
+                          }
+                          style={{
+                            color: "var(--neo-green)",
+                            textDecoration: "none",
+                            fontSize: 13,
+                          }}
+                        >
+                          Ver detalhes comerciais e políticas deste plano
+                        </Link>
+                      </div>
+                      <button
+                        onClick={() => {
+                          void createCheckoutSessionAndRedirect();
+                        }}
+                        className="btn-primary"
+                        style={{ justifyContent: "center", width: "100%" }}
+                        disabled={redirectingToCheckout || rehydratingSession}
+                      >
+                        {redirectingToCheckout
+                          ? "Preparando compra..."
+                          : "⚡ Liberar download agora"}
+                      </button>
+                    </div>
+                  )}
 
-                    {isUnlocked ? (
-                      !publicLink ? (
-                        <button
-                          onClick={() => uploadToCloud(r)}
-                          disabled={isUploading}
-                          className="btn-secondary"
-                          style={{
-                            justifyContent: "center",
-                            opacity: isUploading ? 0.7 : 1,
-                          }}
-                        >
-                          {isUploading
-                            ? "Gerando link..."
-                            : "☁️ Gerar link seguro"}
-                        </button>
-                      ) : (
-                        <div
-                          style={{
-                            padding: 12,
-                            background: "rgba(0,255,157,0.05)",
-                            border: "1px solid var(--border-accent)",
-                            borderRadius: "var(--radius-md)",
-                          }}
-                        >
-                          <p
-                            style={{
-                              fontSize: 12,
-                              color: "var(--text-muted)",
-                              marginBottom: 12,
-                              lineHeight: 1.6,
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                    marginBottom: 16,
+                  }}
+                >
+                  {results.map((r) => {
+                    const publicLink = cloudUrls[r.url];
+                    const isUploading = uploadingKey === r.url;
+                    const isUnlocked =
+                      !paymentEnabled || downloadAuthorized || freeUnlockActive;
+
+                    return (
+                      <div
+                        key={`${r.name}-${r.url}`}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 10,
+                        }}
+                      >
+                        {isUnlocked ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (r.source === "local") {
+                                const anchor = document.createElement("a");
+                                anchor.href = r.url;
+                                anchor.download = r.name;
+                                document.body.appendChild(anchor);
+                                anchor.click();
+                                anchor.remove();
+                                return;
+                              }
+                              void triggerProtectedDownload(r).catch(
+                                (downloadError) => {
+                                  setError(
+                                    downloadError instanceof Error
+                                      ? downloadError.message
+                                      : "Falha ao baixar arquivo protegido.",
+                                  );
+                                },
+                              );
                             }}
+                            className="btn-primary"
+                            style={{ justifyContent: "center" }}
                           >
-                            Link seguro pronto para compartilhamento temporário.
-                          </p>
+                            ⬇️ Baixar {r.name}
+                          </button>
+                        ) : (
                           <div
                             style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: 10,
+                              padding: "10px 12px",
+                              borderRadius: "var(--radius-md)",
+                              border: "1px solid var(--border-subtle)",
+                              color: "var(--text-muted)",
+                              fontSize: 13,
                             }}
                           >
-                            <a
-                              href={publicLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="btn-secondary"
-                              style={{ textDecoration: "none" }}
-                            >
-                              Abrir link
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() => copySecureLink(publicLink)}
-                              className="btn-secondary"
-                            >
-                              {copiedLink === publicLink
-                                ? "Link copiado"
-                                : "Copiar link"}
-                            </button>
+                            Arquivo pronto: {r.name}
                           </div>
-                        </div>
-                      )
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
+                        )}
 
-            <button
-              onClick={reset}
-              className="btn-secondary"
-              style={{ width: "100%", justifyContent: "center", marginTop: 16 }}
-            >
-              Processar outro arquivo
-            </button>
-          </div>
+                        {isUnlocked ? (
+                          !publicLink ? (
+                            <button
+                              onClick={() => uploadToCloud(r)}
+                              disabled={isUploading}
+                              className="btn-secondary"
+                              style={{
+                                justifyContent: "center",
+                                opacity: isUploading ? 0.7 : 1,
+                              }}
+                            >
+                              {isUploading
+                                ? "Gerando link..."
+                                : "☁️ Gerar link seguro"}
+                            </button>
+                          ) : (
+                            <div
+                              style={{
+                                padding: 12,
+                                background: "rgba(0,255,157,0.05)",
+                                border: "1px solid var(--border-accent)",
+                                borderRadius: "var(--radius-md)",
+                              }}
+                            >
+                              <p
+                                style={{
+                                  fontSize: 12,
+                                  color: "var(--text-muted)",
+                                  marginBottom: 12,
+                                  lineHeight: 1.6,
+                                }}
+                              >
+                                Link seguro pronto para compartilhamento
+                                temporário.
+                              </p>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: 10,
+                                }}
+                              >
+                                <a
+                                  href={publicLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="btn-secondary"
+                                  style={{ textDecoration: "none" }}
+                                >
+                                  Abrir link
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => copySecureLink(publicLink)}
+                                  className="btn-secondary"
+                                >
+                                  {copiedLink === publicLink
+                                    ? "Link copiado"
+                                    : "Copiar link"}
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={reset}
+                  className="btn-secondary"
+                  style={{
+                    width: "100%",
+                    justifyContent: "center",
+                    marginTop: 16,
+                  }}
+                >
+                  Processar outro arquivo
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
-
     </main>
   );
 }

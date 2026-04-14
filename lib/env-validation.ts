@@ -16,7 +16,8 @@ const ENV_VARS: EnvVar[] = [
     name: "DOWNLOAD_TOKEN_SECRET",
     required: true,
     minLength: 32,
-    description: "Secret for signing download tokens (generate with: openssl rand -hex 32)",
+    description:
+      "Secret for signing download tokens (generate with: openssl rand -hex 32)",
   },
   {
     name: "CRON_SECRET",
@@ -38,6 +39,17 @@ const ENV_VARS: EnvVar[] = [
     name: "BLOB_READ_WRITE_TOKEN",
     required: false,
     description: "Vercel Blob storage read/write token",
+  },
+  {
+    name: "RAPIDAPI_KEY",
+    required: false, // Set to false to not break dev if key is missing initially
+    description: "RapidAPI key for OCR service",
+  },
+  {
+    name: "RAPIDAPI_HOST",
+    required: false,
+    description:
+      "RapidAPI host for OCR service (e.g., ocr-scanner.p.rapidapi.com)",
   },
   {
     name: "NEXT_PUBLIC_APP_URL",
@@ -89,7 +101,7 @@ export function validateEnvironment(): ValidationResult {
     // Check minimum length
     if (envVar.minLength && value.length < envVar.minLength) {
       errors.push(
-        `${envVar.name} must be at least ${envVar.minLength} characters long (current: ${value.length})`
+        `${envVar.name} must be at least ${envVar.minLength} characters long (current: ${value.length})`,
       );
     }
 
@@ -142,7 +154,7 @@ export function getRequiredEnv(name: string): string {
   if (!value) {
     throw new Error(
       `Required environment variable ${name} is not set. ` +
-      `Please check your .env.local file.`
+        `Please check your .env.local file.`,
     );
   }
   return value;
