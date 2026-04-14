@@ -3,7 +3,7 @@
 # ─────────────────────────────────────────────────────────────
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev build start lint audit clean env deploy deploy-prod prod deploy-preview logs
+.PHONY: help setup dev build start lint audit clean env deploy deploy-prod prod deploy-preview logs test test-e2e check
 
 # Cores
 GREEN  := \033[0;32m
@@ -51,7 +51,7 @@ start: ## Inicia servidor de produção (após build)
 	@echo "$(CYAN)→ Iniciando em modo produção...$(RESET)"
 	pnpm start
 
-## ── Qualidade ────────────────────────────────────────────────
+## ── Qualidade & Testes ───────────────────────────────────────
 
 lint: ## Verifica erros de lint
 	@echo "$(CYAN)→ Verificando lint...$(RESET)"
@@ -63,9 +63,18 @@ audit: ## Verifica vulnerabilidades de segurança
 
 typecheck: ## Verifica tipos TypeScript
 	@echo "$(CYAN)→ Verificando tipos...$(RESET)"
-	pnpm tsc --noEmit
+	pnpm exec tsc --noEmit
 
-check: lint typecheck audit ## Roda lint + typecheck + audit
+test: ## Roda testes unitários e integração (Vitest)
+	@echo "$(CYAN)→ Rodando testes (Vitest)...$(RESET)"
+	pnpm test
+
+test-e2e: ## Roda testes end-to-end (Playwright)
+	@echo "$(CYAN)→ Rodando testes E2E (Playwright)...$(RESET)"
+	pnpm exec playwright test
+
+check: audit lint typecheck test ## Roda Auditoria + Lint + Tipos + Testes
+	@echo "$(GREEN)✓ Verificação de qualidade completa.$(RESET)"
 
 ## ── Limpeza ──────────────────────────────────────────────────
 
@@ -115,7 +124,7 @@ push: ## Push para a branch atual
 	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
 	git push origin $$BRANCH
 
-neo-push: audit lint build ## [PROTOCOLO NΞØ] Security check → Build → Commit → Push
+neo-push: check build ## [PROTOCOLO NΞØ] Security check → Tests → Build → Commit → Push
 	@if [ -z "$(MSG)" ]; then \
 		echo "$(YELLOW)Erro: Mensagem de commit obrigatória (Siga Conventional Commits).$(RESET)"; \
 		echo "$(YELLOW)Uso: make neo-push MSG=\"feat: descrição\"$(RESET)"; \

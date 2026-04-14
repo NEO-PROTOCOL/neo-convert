@@ -78,7 +78,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const filename = safeFilename(file.name, "arquivo");
+    const isMobile = request.headers.get("x-is-mobile") === "true";
+    let filename = safeFilename(file.name, "arquivo");
+    if (isMobile) {
+      filename = `mob-${filename}`;
+    }
 
     const token =
       process.env.BLOB_READ_WRITE_TOKEN || process.env.neo_READ_WRITE_TOKEN;
