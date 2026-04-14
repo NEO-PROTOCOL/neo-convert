@@ -2,7 +2,7 @@ import { put, BlobAccessError } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { validateDownloadToken } from "@/lib/download-token";
-import { getClientIp, isSameOriginRequest, safeFilename } from "@/lib/security";
+import { getClientIp, isSameOriginRequest, safeFilename, isMobileRequest } from "@/lib/security";
 
 export const maxDuration = 60; // 60 segundos de tolerância para uploads grandes
 export const dynamic = "force-dynamic";
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const isMobile = request.headers.get("x-is-mobile") === "true";
+    const isMobile = isMobileRequest(request);
     let filename = safeFilename(file.name, "arquivo");
     if (isMobile) {
       filename = `mob-${filename}`;

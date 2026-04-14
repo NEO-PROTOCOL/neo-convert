@@ -164,4 +164,30 @@ describe("POST /api/upload-to-cloud", () => {
       }),
     );
   });
+
+  it("prefixes filename with mob- for mobile uploads", async () => {
+    uploadMocks.putMock.mockResolvedValueOnce({
+      url: "https://files.neo-convert.site/mob-contract.pdf",
+      pathname: "neo/mob-contract.pdf",
+      contentType: "application/pdf",
+    });
+
+    const request = createUploadRequest({
+      file: new File(["pdf"], "contract.pdf", {
+        type: "application/pdf",
+      }),
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1",
+      },
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(uploadMocks.putMock).toHaveBeenCalledWith(
+      "mob-contract.pdf",
+      expect.any(File),
+      expect.anything(),
+    );
+  });
 });
