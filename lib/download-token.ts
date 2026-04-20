@@ -5,7 +5,7 @@ import { ensureTursoSchema, getTurso } from "./turso";
 
 /**
  * Name of the HttpOnly cookie that carries the download authorization.
- * Kept in sync with lib/download-token.ts#setDownloadTokenCookie.
+ * Reuse this constant anywhere the download-token cookie is read or written.
  */
 export const DOWNLOAD_TOKEN_COOKIE = "neo_download_token";
 

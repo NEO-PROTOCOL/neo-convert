@@ -38,7 +38,10 @@ export async function POST(request: NextRequest) {
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: "Muitas requisições de OCR. Aguarde um minuto." },
-      { status: 429 }
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      }
     );
   }
 

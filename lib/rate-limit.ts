@@ -20,17 +20,22 @@ export async function enforceRateLimit(
   const client = getTurso();
   const now = Date.now();
   const newReset = now + windowMs;
+  const cappedExceededCount = limit + 1;
 
   const result = await client.execute({
     sql: `
       INSERT INTO rate_limits (key, count, reset_at)
       VALUES (?, 1, ?)
       ON CONFLICT(key) DO UPDATE SET
-        count = CASE WHEN rate_limits.reset_at <= ? THEN 1 ELSE rate_limits.count + 1 END,
+        count = CASE
+          WHEN rate_limits.reset_at <= ? THEN 1
+          WHEN rate_limits.count >= ? THEN ?
+          ELSE rate_limits.count + 1
+        END,
         reset_at = CASE WHEN rate_limits.reset_at <= ? THEN ? ELSE rate_limits.reset_at END
       RETURNING count, reset_at
     `,
-    args: [key, newReset, now, now, newReset],
+    args: [key, newReset, now, limit, cappedExceededCount, now, newReset],
   });
 
   const row = result.rows[0];

@@ -18,6 +18,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 const isProd = process.env.NODE_ENV === "production";
 
+function makeNonce(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
 function buildCsp(nonce: string): string {
   const scriptSrc = isProd
     ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://vercel.live`
@@ -45,7 +52,7 @@ function buildCsp(nonce: string): string {
 
 export function proxy(request: NextRequest) {
   // 16 random bytes, base64 — plenty of entropy, compact in the header.
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const nonce = makeNonce();
   const csp = buildCsp(nonce);
 
   // Forward the nonce so server components can read it via `headers()`.

@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
     root: process.cwd(),
   },
   async headers() {
-    // Content-Security-Policy is set per-request by `middleware.ts` because
+    // Content-Security-Policy is set per-request by `proxy.ts` because
     // it embeds a fresh nonce each time. All other static security headers
     // stay here — they apply uniformly to every route, including API routes.
     return [

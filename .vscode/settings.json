@@ -1,6 +1,5 @@
 {
   // --- Editor & Geral ---
-  "editor.defaultFormatter": "ms-python.black-formatter",
   "editor.formatOnSave": true,
   "editor.rulers": [80, 120],
   "editor.accessibilitySupport": "on",
@@ -13,7 +12,6 @@
   "python.languageServer": "Pylance",
   "python.analysis.autoImportCompletions": true,
   "python.analysis.typeCheckingMode": "basic",
-  "python.defaultInterpreterPath": "/usr/local/bin/python3",
   "python.terminal.useEnvFile": true,
   "python.autoComplete.extraPaths": [],
 
@@ -45,9 +43,16 @@
 
   // --- Configurações por Linguagem ---
   "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
     "diffEditor.ignoreTrimWhitespace": false,
     "editor.defaultColorDecorators": "never",
     "gitlens.codeLens.symbolScopes": ["!Module"]
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[markdown]": {
     "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
