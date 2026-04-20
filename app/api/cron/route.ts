@@ -3,6 +3,7 @@ import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/security";
+import { cleanupExpiredTurso } from "@/lib/turso";
 
 const CRON_RATE_LIMIT = 30;
 const CRON_WINDOW_MS = 60 * 1000;
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
   }
 
   const ip = getClientIp(req);
-  const rateLimit = enforceRateLimit(
+  const rateLimit = await enforceRateLimit(
     `cron:${ip}`,
     CRON_RATE_LIMIT,
     CRON_WINDOW_MS,
@@ -107,9 +108,18 @@ export async function GET(req: NextRequest) {
       await del(toDelete);
     }
 
+    // Cleanup expired rows from Turso (rate_limits, download_tokens, sent_payment_emails)
+    let tursoCleaned = 0;
+    try {
+      tursoCleaned = await cleanupExpiredTurso(now);
+    } catch (error) {
+      console.error("Falha ao limpar tabelas Turso:", error);
+    }
+
     return NextResponse.json({
       ok: true,
       cleaned: toDelete.length,
+      tursoCleaned,
       totalScanned,
       retentionMs,
       hasMore,

@@ -1,7 +1,10 @@
 import { get } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { validateCheckoutSession } from "@/lib/checkout-session";
-import { validateDownloadToken } from "@/lib/download-token";
+import {
+  readDownloadTokenFromRequest,
+  validateDownloadToken,
+} from "@/lib/download-token";
 import { getClientIp, isSameOriginRequest, safeFilename } from "@/lib/security";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
@@ -21,7 +24,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   const ip = getClientIp(request);
-  const rateLimit = enforceRateLimit(
+  const rateLimit = await enforceRateLimit(
     `checkout-session-download:${ip}`,
     DOWNLOAD_RATE_LIMIT,
     DOWNLOAD_WINDOW_MS,
@@ -39,10 +42,12 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   const sessionToken = request.nextUrl.searchParams.get("session");
   const fileIndexRaw = request.nextUrl.searchParams.get("file");
-  const downloadToken = request.headers.get("x-download-token");
+  // Prefer the HttpOnly cookie set by /api/checkout/status; fall back to
+  // the legacy `x-download-token` header during the client migration.
+  const downloadToken = readDownloadTokenFromRequest(request);
 
   const session = sessionToken ? validateCheckoutSession(sessionToken) : { valid: false as const };
-  const access = downloadToken ? validateDownloadToken(downloadToken) : { valid: false as const };
+  const access = downloadToken ? await validateDownloadToken(downloadToken) : { valid: false as const };
 
   if (!session.valid || !access.valid) {
     return NextResponse.json(

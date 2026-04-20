@@ -10,10 +10,14 @@ export default function Navbar() {
       background: "rgba(10, 10, 15, 0.85)",
       backdropFilter: "blur(20px)",
       WebkitBackdropFilter: "blur(20px)",
+      boxSizing: "border-box",
+      width: "100%",
     }}>
       <div style={{
         maxWidth: 1200, margin: "0 auto", height: 68,
         display: "flex", alignItems: "center", justifyContent: "space-between",
+        width: "100%",
+        boxSizing: "border-box",
       }}>
         {/* Logo */}
         <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>

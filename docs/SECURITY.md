@@ -92,8 +92,9 @@ neo-convert implements multiple layers of security:
 - **Mitigation**:
   - HMAC-SHA256 signed tokens
   - 1-hour token TTL
-  - Tokens stored in localStorage (short-lived)
+  - Tokens stored in HttpOnly + Secure + SameSite=Lax cookies (not readable by JS)
   - Token validation on every request
+  - Token lookup persisted in Turso (libSQL), revocable independent of cookie
 
 **Insecure Direct Object References**
 - **Risk**: LOW
@@ -210,17 +211,31 @@ isSameOriginRequest(req) // Validates Origin vs Host headers
 
 ### Content Security Policy
 
-Configured in `next.config.ts`:
+CSP is emitted per-request by `proxy.ts` (Next.js 16 middleware). Every HTML
+request gets a fresh nonce; framework-rendered `<script>` tags carry that
+nonce, and `strict-dynamic` authorizes any script transitively loaded by them.
+
+**Production policy**:
 
 ```
 default-src 'self'
-script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live
+script-src 'self' 'nonce-{random}' 'strict-dynamic' https://vercel.live
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com
 img-src 'self' data: blob: https:
-connect-src 'self' https://api.flowpay.cash https://*.blob.vercel-storage.com
+connect-src 'self' https://api.flowpay.cash https://send.api.mailtrap.io
+             https://*.blob.vercel-storage.com https://vercel.live
+             wss://ws-us3.pusher.com wss://*.pusher.com
 frame-ancestors 'none'
+object-src 'none'
+upgrade-insecure-requests
 ```
 
-**Note**: `unsafe-inline` and `unsafe-eval` required for Next.js hot reload. Should be removed in production build.
+**Development policy** retains `'unsafe-eval'` because Turbopack's HMR client
+relies on `eval` to hot-swap modules. Inline scripts are still blocked.
+
+**Static headers** (X-Frame-Options, Referrer-Policy, HSTS, etc.) remain in
+`next.config.ts#headers()` and apply uniformly to all routes, including the
+`/api/*` surface the proxy doesn't cover.
 
 ### File Upload Security
 
@@ -247,41 +262,37 @@ frame-ancestors 'none'
 ### Authentication Tokens
 
 **Download Tokens** (lib/download-token.ts):
-- HMAC-SHA256 signature
+- HMAC-SHA256 signature, compared with `timingSafeEqual`
 - Format: `{uuid}:{signature}`
 - 1-hour TTL
-- Single-use (not enforced yet)
-- Stored in-memory (limitation)
+- Persisted in Turso (libSQL) with explicit `expires_at`; expired rows are
+  deleted by the daily cron
+- Delivered to the browser as an HttpOnly + Secure + SameSite=Lax cookie
+  (`neo_download_token`); never returned in JSON bodies, URL params, or
+  Referer headers
 
 **Security Properties**:
 - Cannot be forged (HMAC)
 - Cannot be reused after expiry
 - Scoped to correlation ID and plan ID
+- Not readable by client-side JS (HttpOnly), reducing XSS exfiltration risk
 
 ## Known Limitations
 
-### 1. In-Memory State Stores
+### 1. State Stores
 
-**Affected Components**:
-- Rate limiter (`lib/rate-limit.ts`)
-- Download token store (`lib/download-token.ts`)
-- Email deduplication (`app/api/checkout/status/[chargeId]/route.ts`)
+All KV-like state now lives in **Turso (libSQL)** via `@libsql/client`:
 
-**Impact**:
-- State resets on serverless cold start (every ~5-15 minutes)
-- Not shared across parallel function instances
-- Rate limiting can be bypassed with distributed requests
-- Download tokens lost on deployment
+- Rate limiter (`lib/rate-limit.ts`) → table `rate_limits`
+- Download token store (`lib/download-token.ts`) → table `download_tokens`
+- Email deduplication (`lib/payment-email-dedup.ts`) → table `sent_payment_emails`
 
-**Mitigation** (Short-term):
-- Pruning logic prevents memory bloat
-- Generous rate limits account for resets
-- Short token TTL minimizes impact
-
-**Recommendation** (Production):
-- Migrate to Vercel KV (Redis) for persistent storage
-- Use atomic increment operations for rate limiting
-- Store tokens with TTL in Redis
+**Properties**:
+- Persistent across cold starts and deployments
+- Shared across parallel function instances (single logical DB)
+- Atomic operations (`INSERT ON CONFLICT DO UPDATE RETURNING`,
+  `INSERT OR IGNORE`) avoid race conditions
+- Expired rows swept by the daily cron (`cleanupExpiredTurso`)
 
 ### 2. Polling-Based Payment Status
 
@@ -450,7 +461,9 @@ frame-ancestors 'none'
 - [x] Consolidate security constants
 - [x] Fix dependency vulnerabilities
 - [x] Add security documentation
-- [ ] Migrate to Vercel KV for state persistence
+- [x] Migrate KV state to Turso (libSQL) for persistence
+- [x] Move download token from query string to HttpOnly cookie
+- [x] Harden CSP — drop `unsafe-inline`/`unsafe-eval` in production, adopt per-request nonces + `strict-dynamic`
 
 ### Q2 2026
 - [ ] Implement webhook-based payment updates

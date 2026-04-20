@@ -33,6 +33,7 @@ export default function Footer() {
     >
       <div className="container">
         <div
+          className="footer-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "2fr 1fr 1fr 1fr",

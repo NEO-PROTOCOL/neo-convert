@@ -1,12 +1,4 @@
-// TODO: This in-memory rate limiter resets on every serverless cold start and
-// is not shared across parallel function instances on Vercel. For production
-// resilience, migrate to a persistent store (e.g. Vercel KV / Upstash Redis).
-// The same applies to sentPaymentEmails in checkout/status/route.ts.
-
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
+import { ensureTursoSchema, getTurso } from "./turso";
 
 interface RateLimitResult {
   allowed: boolean;
@@ -14,58 +6,48 @@ interface RateLimitResult {
   retryAfterSeconds: number;
 }
 
-declare global {
-  var __neoConvertRateLimitStore: Map<string, RateLimitEntry> | undefined;
-}
-
-const store =
-  global.__neoConvertRateLimitStore ?? new Map<string, RateLimitEntry>();
-
-if (!global.__neoConvertRateLimitStore) {
-  global.__neoConvertRateLimitStore = store;
-}
-
-function pruneExpired(now: number): void {
-  if (store.size <= 4000) return;
-  for (const [key, value] of store.entries()) {
-    if (value.resetAt <= now) {
-      store.delete(key);
-    }
-  }
-}
-
-export function enforceRateLimit(
+/**
+ * Rate limiter backed by Turso (libSQL). Atomic counter increment via
+ * `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`, so concurrent serverless
+ * invocations cannot race past the configured limit.
+ */
+export async function enforceRateLimit(
   key: string,
   limit: number,
   windowMs: number,
-): RateLimitResult {
+): Promise<RateLimitResult> {
+  await ensureTursoSchema();
+  const client = getTurso();
   const now = Date.now();
-  pruneExpired(now);
+  const newReset = now + windowMs;
 
-  const current = store.get(key);
-  if (!current || current.resetAt <= now) {
-    store.set(key, { count: 1, resetAt: now + windowMs });
-    return {
-      allowed: true,
-      remaining: Math.max(limit - 1, 0),
-      retryAfterSeconds: 0,
-    };
-  }
+  const result = await client.execute({
+    sql: `
+      INSERT INTO rate_limits (key, count, reset_at)
+      VALUES (?, 1, ?)
+      ON CONFLICT(key) DO UPDATE SET
+        count = CASE WHEN rate_limits.reset_at <= ? THEN 1 ELSE rate_limits.count + 1 END,
+        reset_at = CASE WHEN rate_limits.reset_at <= ? THEN ? ELSE rate_limits.reset_at END
+      RETURNING count, reset_at
+    `,
+    args: [key, newReset, now, now, newReset],
+  });
 
-  if (current.count >= limit) {
+  const row = result.rows[0];
+  const count = Number(row?.count ?? 1);
+  const resetAt = Number(row?.reset_at ?? newReset);
+
+  if (count > limit) {
     return {
       allowed: false,
       remaining: 0,
-      retryAfterSeconds: Math.max(Math.ceil((current.resetAt - now) / 1000), 1),
+      retryAfterSeconds: Math.max(Math.ceil((resetAt - now) / 1000), 1),
     };
   }
 
-  current.count += 1;
-  store.set(key, current);
-
   return {
     allowed: true,
-    remaining: Math.max(limit - current.count, 0),
+    remaining: Math.max(limit - count, 0),
     retryAfterSeconds: 0,
   };
 }

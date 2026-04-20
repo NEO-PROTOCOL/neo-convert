@@ -144,12 +144,15 @@ export default function CheckoutPageClient({
       setPaidAt(paidAtValue);
 
       if (paid) {
-        const downloadToken =
-          typeof data.downloadToken === "string" ? data.downloadToken : null;
-        if (downloadToken && sessionSummary?.returnToPath && initialSessionToken) {
+        // Download token is issued server-side as an HttpOnly cookie — the
+        // browser will carry it automatically to the tool page. We only pass
+        // a `paid=1` signal so the tool page knows to resume the download
+        // flow. Avoids leaking the token via URL query, server logs,
+        // browser history, or Referer headers.
+        if (sessionSummary?.returnToPath && initialSessionToken) {
           const redirectUrl = new URL(sessionSummary.returnToPath, window.location.origin);
           redirectUrl.searchParams.set("checkoutSession", initialSessionToken);
-          redirectUrl.searchParams.set("downloadToken", downloadToken);
+          redirectUrl.searchParams.set("paid", "1");
           window.location.assign(redirectUrl.toString());
           return true;
         }

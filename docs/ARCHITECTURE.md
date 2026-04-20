@@ -33,7 +33,7 @@ neo-convert/
 │   ├── UploadZone.tsx      # Drag-and-drop de arquivos
 │   ├── ToolGrid.tsx        # Grid 12 ferramentas
 │   ├── Pricing.tsx         # 3 planos com botão Pix
-│   ├── CheckoutModal.tsx   # Modal QR Code Pix + email
+│   ├── CheckoutPageClient.tsx # Página de checkout (QR Code Pix + CPF)
 │   └── Footer.tsx          # Rodapé com links
 │
 ├── lib/                    # Utilitários (a criar)
@@ -79,7 +79,7 @@ Definido em `app/globals.css` via variáveis CSS:
 
 ```
 User → Pricing.tsx
-  → CheckoutModal.tsx (form: nome + email)
+  → CheckoutPageClient.tsx (form: nome + email + CPF)
     → POST /api/checkout
       → FlowPay API → cria charge Pix
       → Mailtrap → envia email QR Code

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/mailtrap";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { createDownloadToken } from "@/lib/download-token";
+import {
+  createDownloadToken,
+  DOWNLOAD_TOKEN_COOKIE,
+  downloadTokenCookieOptions,
+} from "@/lib/download-token";
+import { markPaymentEmailSentIfFirst } from "@/lib/payment-email-dedup";
 import {
   escapeHtml,
   getClientIp,
@@ -13,7 +18,6 @@ import {
 const STATUS_RATE_LIMIT = 60;
 const STATUS_WINDOW_MS = 15 * 60 * 1000;
 const FLOWPAY_TIMEOUT_MS = 10_000;
-const EMAIL_DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PAID_STATUSES = new Set([
   "PAID",
   "COMPLETED",
@@ -25,21 +29,6 @@ const PAID_STATUSES = new Set([
   "SETTLED",
 ]);
 const KNOWN_PLAN_IDS = new Set(["starter", "pro", "business"]);
-const sentPaymentEmails = new Map<string, number>();
-
-function markEmailSentIfFirst(chargeId: string): boolean {
-  const now = Date.now();
-
-  for (const [id, timestamp] of sentPaymentEmails.entries()) {
-    if (now - timestamp > EMAIL_DEDUPE_WINDOW_MS) {
-      sentPaymentEmails.delete(id);
-    }
-  }
-
-  if (sentPaymentEmails.has(chargeId)) return false;
-  sentPaymentEmails.set(chargeId, now);
-  return true;
-}
 
 function sanitizeChargeId(rawValue: string): string | null {
   const value = rawValue.trim();
@@ -99,7 +88,7 @@ export async function GET(
   }
 
   const ip = getClientIp(req);
-  const rateLimit = enforceRateLimit(
+  const rateLimit = await enforceRateLimit(
     `checkout-status:${ip}`,
     STATUS_RATE_LIMIT,
     STATUS_WINDOW_MS,
@@ -211,7 +200,7 @@ export async function GET(
       normalizeText(req.nextUrl.searchParams.get("notifyAmount"), 40) ||
       "pagamento confirmado";
 
-    if (notifyEmail && markEmailSentIfFirst(chargeId)) {
+    if (notifyEmail && (await markPaymentEmailSentIfFirst(chargeId))) {
       const templateUuid = process.env.MAILTRAP_PAYMENT_SUCCESS_TEMPLATE_ID;
       try {
         if (templateUuid) {
@@ -265,7 +254,7 @@ export async function GET(
       : "starter";
 
   const downloadToken = paid
-    ? createDownloadToken(chargeId, plan)
+    ? await createDownloadToken(chargeId, plan)
     : undefined;
 
   const response = NextResponse.json({
@@ -274,8 +263,18 @@ export async function GET(
     paid,
     paidAt,
     paymentEmailSent,
-    ...(downloadToken ? { downloadToken } : {}),
+    // NOTE: downloadToken is intentionally NOT returned in the body.
+    // It is issued as an HttpOnly cookie to prevent leakage via server logs,
+    // browser history, and Referer headers. Clients signal "download
+    // authorized" to other endpoints by sending credentials.
   });
+  if (downloadToken) {
+    response.cookies.set(
+      DOWNLOAD_TOKEN_COOKIE,
+      downloadToken,
+      downloadTokenCookieOptions,
+    );
+  }
   response.headers.set("Cache-Control", "no-store");
   return response;
 }

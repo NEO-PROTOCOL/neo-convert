@@ -1,7 +1,10 @@
 import { put, BlobAccessError } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { validateDownloadToken } from "@/lib/download-token";
+import {
+  readDownloadTokenFromRequest,
+  validateDownloadToken,
+} from "@/lib/download-token";
 import { getClientIp, isSameOriginRequest, safeFilename, isMobileRequest } from "@/lib/security";
 
 export const maxDuration = 60; // 60 segundos de tolerância para uploads grandes
@@ -27,7 +30,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const ip = getClientIp(request);
-  const rateLimit = enforceRateLimit(
+  const rateLimit = await enforceRateLimit(
     `upload:${ip}`,
     UPLOAD_RATE_LIMIT,
     UPLOAD_WINDOW_MS,
@@ -42,11 +45,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Verify server-signed download token from payment flow.
-  // Token is passed as a header to avoid coupling it to FormData.
-  const downloadToken = request.headers.get("x-download-token");
+  // Verify server-signed download token from payment flow. Reads the
+  // HttpOnly cookie set by /api/checkout/status, with fallback to the
+  // legacy `x-download-token` header for in-flight clients.
+  const downloadToken = readDownloadTokenFromRequest(request);
   if (downloadToken) {
-    const tokenResult = validateDownloadToken(downloadToken);
+    const tokenResult = await validateDownloadToken(downloadToken);
     if (!tokenResult.valid) {
       return NextResponse.json(
         { error: "Token de download inválido ou expirado." },
