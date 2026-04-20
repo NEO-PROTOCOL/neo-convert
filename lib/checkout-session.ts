@@ -1,5 +1,14 @@
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { SECURITY } from "./constants";
+
+function safeCompareHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+  } catch {
+    return false;
+  }
+}
 
 export interface CheckoutSessionFile {
   name: string;
@@ -87,7 +96,7 @@ export function validateCheckoutSession(
   const providedSignature = token.slice(separatorIndex + 1);
   const expectedSignature = signPayload(encoded);
 
-  if (providedSignature !== expectedSignature) {
+  if (!safeCompareHex(providedSignature, expectedSignature)) {
     return { valid: false };
   }
 

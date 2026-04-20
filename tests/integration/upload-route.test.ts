@@ -18,15 +18,19 @@ vi.mock("@vercel/blob", () => ({
   BlobAccessError: uploadMocks.BlobAccessError,
 }));
 
-vi.mock("@/lib/download-token", () => ({
-  validateDownloadToken: uploadMocks.validateDownloadTokenMock,
-}));
+vi.mock("@/lib/download-token", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/download-token")>(
+      "@/lib/download-token",
+    );
+  return {
+    ...actual,
+    validateDownloadToken: uploadMocks.validateDownloadTokenMock,
+  };
+});
 
 import { POST } from "@/app/api/upload-to-cloud/route";
-
-type RateLimitGlobal = typeof globalThis & {
-  __neoConvertRateLimitStore?: Map<string, { count: number; resetAt: number }>;
-};
+import { ensureTursoSchema, getTurso } from "@/lib/turso";
 
 function createUploadRequest(options?: {
   file?: File;
@@ -49,18 +53,19 @@ function createUploadRequest(options?: {
 }
 
 describe("POST /api/upload-to-cloud", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.restoreAllMocks();
     uploadMocks.putMock.mockReset();
     uploadMocks.validateDownloadTokenMock.mockReset();
-    uploadMocks.validateDownloadTokenMock.mockReturnValue({ valid: true });
-    (globalThis as RateLimitGlobal).__neoConvertRateLimitStore?.clear();
+    uploadMocks.validateDownloadTokenMock.mockResolvedValue({ valid: true });
+    await ensureTursoSchema();
+    await getTurso().execute("DELETE FROM rate_limits");
     process.env.BLOB_READ_WRITE_TOKEN = "blob-secret";
     delete process.env.neo_READ_WRITE_TOKEN;
   });
 
   it("rejects invalid download tokens", async () => {
-    uploadMocks.validateDownloadTokenMock.mockReturnValue({ valid: false });
+    uploadMocks.validateDownloadTokenMock.mockResolvedValue({ valid: false });
 
     const request = createUploadRequest({
       file: new File(["pdf"], "contract.pdf", {

@@ -25,10 +25,7 @@ vi.mock("@/lib/download-token", async () => {
 });
 
 import { GET } from "@/app/api/checkout/status/[chargeId]/route";
-
-type RateLimitGlobal = typeof globalThis & {
-  __neoConvertRateLimitStore?: Map<string, { count: number; resetAt: number }>;
-};
+import { ensureTursoSchema, getTurso } from "@/lib/turso";
 
 function createStatusRequest(options?: {
   chargeId?: string;
@@ -65,13 +62,15 @@ function createStatusRequest(options?: {
 }
 
 describe("GET /api/checkout/status/[chargeId]", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     statusMocks.sendEmailMock.mockReset();
     statusMocks.createDownloadTokenMock.mockReset();
-    statusMocks.createDownloadTokenMock.mockReturnValue("download-token-123");
-    (globalThis as RateLimitGlobal).__neoConvertRateLimitStore?.clear();
+    statusMocks.createDownloadTokenMock.mockResolvedValue("download-token-123");
+    await ensureTursoSchema();
+    await getTurso().execute("DELETE FROM rate_limits");
+    await getTurso().execute("DELETE FROM sent_payment_emails");
     delete process.env.MAILTRAP_API_TOKEN;
     delete process.env.MAILTRAP_PAYMENT_SUCCESS_TEMPLATE_ID;
     delete process.env.FLOWPAY_API_URL;
@@ -169,8 +168,15 @@ describe("GET /api/checkout/status/[chargeId]", () => {
       paid: true,
       paidAt: "2026-03-07T01:00:00.000Z",
       paymentEmailSent: true,
-      downloadToken: "download-token-123",
     });
+    // Download token must not appear in the JSON body — it's issued as
+    // an HttpOnly cookie to keep it out of server logs, browser history,
+    // and Referer headers.
+    expect(payload).not.toHaveProperty("downloadToken");
+    const tokenCookie = response.cookies.get("neo_download_token");
+    expect(tokenCookie?.value).toBe("download-token-123");
+    expect(tokenCookie?.httpOnly).toBe(true);
+    expect(tokenCookie?.sameSite).toBe("lax");
     expect(statusMocks.createDownloadTokenMock).toHaveBeenCalledWith(
       "charge-paid-1",
       "starter",

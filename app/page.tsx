@@ -19,7 +19,7 @@ export default function Home() {
         <main id="main-content">
           {/* HERO */}
           <section
-            style={{ paddingTop: 140, paddingBottom: 80, textAlign: "center" }}
+            style={{ paddingTop: "clamp(100px, 18vw, 140px)", paddingBottom: 80, textAlign: "center" }}
           >
             <div className="container">
               <div
@@ -105,6 +105,7 @@ export default function Home() {
               </p>
 
               <div
+                className="tech-badge"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -117,10 +118,12 @@ export default function Home() {
                   color: "var(--text-secondary)",
                   fontSize: 12,
                   fontFamily: "'JetBrains Mono', monospace",
+                  maxWidth: "100%",
+                  boxSizing: "border-box",
                 }}
               >
-                <span style={{ color: "var(--neo-green)" }}>→</span>
-                Entrada institucional na home. Execução dentro da ferramenta.
+                <span style={{ color: "var(--neo-green)", flexShrink: 0 }}>→</span>
+                <span>Entrada institucional na home. Execução dentro da ferramenta.</span>
               </div>
 
               <div
@@ -150,14 +153,15 @@ export default function Home() {
           <section style={{ paddingBottom: 80 }}>
             <div className="container">
               <div
+                className="stats-card"
                 style={{
                   background: "var(--bg-surface)",
                   border: "1px solid var(--border-subtle)",
                   borderRadius: "var(--radius-xl)",
                   padding: "36px 48px",
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                  gap: 32,
+                  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                  gap: 24,
                   textAlign: "center",
                 }}
               >

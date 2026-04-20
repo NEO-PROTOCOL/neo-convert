@@ -46,8 +46,13 @@ test("completes the checkout modal flow until paid confirmation", async ({
         paid: true,
         paidAt: "2026-03-07T03:01:00.000Z",
         paymentEmailSent: true,
-        downloadToken: "download-e2e-token",
       }),
+      // Download token is now issued server-side as an HttpOnly cookie —
+      // mock the Set-Cookie so the client-side redirect picks it up too.
+      headers: {
+        "set-cookie":
+          "neo_download_token=download-e2e-token; Path=/; HttpOnly; SameSite=Lax",
+      },
     });
   });
 

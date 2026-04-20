@@ -1,0 +1,63 @@
+{
+  // --- Editor & Geral ---
+  "editor.formatOnSave": true,
+  "editor.rulers": [80, 120],
+  "editor.accessibilitySupport": "on",
+  "editor.largeFileOptimizations": false,
+  "files.autoSave": "afterDelay",
+  "explorer.confirmDelete": false,
+  "explorer.confirmDragAndDrop": false,
+
+  // --- Python & Pylance ---
+  "python.languageServer": "Pylance",
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.typeCheckingMode": "basic",
+  "python.terminal.useEnvFile": true,
+  "python.autoComplete.extraPaths": [],
+
+  // --- Notebooks ---
+  "notebook.defaultFormatter": "ms-python.black-formatter",
+  "notebook.formatOnSave.enabled": true,
+
+  // --- Interfaces & Temas ---
+  "workbench.colorTheme": "GitHub Dark Default",
+  "workbench.settings.openDefaultSettings": true,
+  "terminal.integrated.allowedLinkSchemes": [
+    "file",
+    "http",
+    "https",
+    "mailto",
+    "vscode",
+    "vscode-insiders",
+    "docker-desktop"
+  ],
+
+  // --- Extensões Alvo ---
+  "github.copilot.nextEditSuggestions.enabled": false,
+  "chat.mcp.gallery.enabled": true,
+  "gitlens.ai.model": "gitkraken",
+  "gitlens.ai.gitkraken.model": "gemini:gemini-2.0-flash",
+  "redhat.telemetry.enabled": true,
+  "makefile.configureOnOpen": true,
+  "diffEditor.codeLens": true,
+
+  // --- Configurações por Linguagem ---
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "diffEditor.ignoreTrimWhitespace": false,
+    "editor.defaultColorDecorators": "never",
+    "gitlens.codeLens.symbolScopes": ["!Module"]
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
+}

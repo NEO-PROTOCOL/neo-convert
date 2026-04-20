@@ -70,7 +70,6 @@ function ToolPageInner({
   const [error, setError] = useState("");
   const [redirectingToCheckout, setRedirectingToCheckout] = useState(false);
   const [downloadAuthorized, setDownloadAuthorized] = useState(false);
-  const [downloadToken, setDownloadToken] = useState<string | null>(null);
   const [checkoutSessionToken, setCheckoutSessionToken] = useState<
     string | null
   >(null);
@@ -93,10 +92,6 @@ function ToolPageInner({
     (paymentEnabled && payment?.planId
       ? `neo:download-authorization:${payment.planId}`
       : "");
-  const paymentTokenStorageKey =
-    paymentEnabled && payment?.planId
-      ? `neo:download-token:${payment.planId}`
-      : "";
   const freeAllowanceStorageKey =
     freeAllowance?.storageKey ||
     (paymentEnabled && payment?.planId && freeAllowance
@@ -201,47 +196,26 @@ function ToolPageInner({
   useEffect(() => {
     if (!paymentEnabled || !paymentStorageKey) {
       setDownloadAuthorized(false);
-      setDownloadToken(null);
       return;
     }
 
-    let authorized = false;
-    let restoredToken: string | null = null;
-
+    // UX hint only: `authorized=true` just flips the UI to "download ready".
+    // The actual authorization lives in the HttpOnly cookie on the server,
+    // which is revalidated on every protected fetch. A stale localStorage
+    // flag will simply result in a 401 from the API, not data exposure.
     try {
       const raw = window.localStorage.getItem(paymentStorageKey);
       const expiresAt = raw ? Number(raw) : 0;
       if (Number.isFinite(expiresAt) && expiresAt > Date.now()) {
-        authorized = true;
+        setDownloadAuthorized(true);
       } else {
         window.localStorage.removeItem(paymentStorageKey);
-      }
-
-      if (paymentTokenStorageKey) {
-        const rawToken = window.localStorage.getItem(paymentTokenStorageKey);
-        if (rawToken) {
-          const parsed = JSON.parse(rawToken) as {
-            token?: string;
-            expiresAt?: number;
-          };
-          if (
-            parsed?.token &&
-            typeof parsed.expiresAt === "number" &&
-            parsed.expiresAt > Date.now()
-          ) {
-            restoredToken = parsed.token;
-          } else {
-            window.localStorage.removeItem(paymentTokenStorageKey);
-          }
-        }
+        setDownloadAuthorized(false);
       }
     } catch {
-      // Ignore localStorage failures and require a new payment attempt.
+      setDownloadAuthorized(false);
     }
-
-    setDownloadAuthorized(authorized);
-    setDownloadToken(restoredToken);
-  }, [paymentEnabled, paymentStorageKey, paymentTokenStorageKey]);
+  }, [paymentEnabled, paymentStorageKey]);
 
   useEffect(() => {
     if (!freeAllowance || !freeAllowanceStorageKey) {
@@ -258,47 +232,29 @@ function ToolPageInner({
     }
   }, [freeAllowance, freeAllowanceStorageKey]);
 
-  const handlePaymentApproved = useCallback(
-    (data?: { downloadToken?: string }) => {
-      const expiresAt = Date.now() + paymentTtlMs;
+  const handlePaymentApproved = useCallback(() => {
+    const expiresAt = Date.now() + paymentTtlMs;
 
-      if (paymentEnabled && paymentStorageKey) {
-        try {
-          window.localStorage.setItem(paymentStorageKey, String(expiresAt));
-        } catch {
-          // Ignore storage errors; authorization remains in-memory for current session.
-        }
+    if (paymentEnabled && paymentStorageKey) {
+      try {
+        window.localStorage.setItem(paymentStorageKey, String(expiresAt));
+      } catch {
+        // Ignore storage errors; authorization remains in-memory for current session.
       }
+    }
 
-      if (data?.downloadToken) {
-        setDownloadToken(data.downloadToken);
-        if (paymentTokenStorageKey) {
-          try {
-            window.localStorage.setItem(
-              paymentTokenStorageKey,
-              JSON.stringify({
-                token: data.downloadToken,
-                expiresAt,
-              }),
-            );
-          } catch {
-            // Ignore storage failures and keep the token in memory.
-          }
-        }
-      }
-
-      setDownloadAuthorized(true);
-      setFreeUnlockActive(false);
-      setError("");
-    },
-    [paymentEnabled, paymentStorageKey, paymentTokenStorageKey, paymentTtlMs],
-  );
+    // The actual download token is an HttpOnly cookie set by the
+    // /api/checkout/status endpoint — no client-side handling required.
+    setDownloadAuthorized(true);
+    setFreeUnlockActive(false);
+    setError("");
+  }, [paymentEnabled, paymentStorageKey, paymentTtlMs]);
 
   useEffect(() => {
     if (!paymentEnabled) return;
 
     const sessionParam = searchParams.get("checkoutSession");
-    const queryDownloadToken = searchParams.get("downloadToken");
+    const paidSignal = searchParams.get("paid");
 
     if (sessionParam) {
       setCheckoutSessionToken(sessionParam);
@@ -345,12 +301,15 @@ function ToolPageInner({
         .finally(() => setRehydratingSession(false));
     }
 
-    if (queryDownloadToken) {
-      handlePaymentApproved({ downloadToken: queryDownloadToken });
+    if (paidSignal === "1") {
+      // Download token arrived via HttpOnly cookie set by /api/checkout/status.
+      // Flip UI to "authorized" and scrub the `paid` marker from the URL so
+      // a refresh doesn't replay the approval flow or leak state via history.
+      handlePaymentApproved();
 
       try {
         const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.delete("downloadToken");
+        currentUrl.searchParams.delete("paid");
         window.history.replaceState({}, "", currentUrl.toString());
       } catch {
         // Ignore URL cleanup failures.
@@ -408,19 +367,19 @@ function ToolPageInner({
         return response.blob();
       }
 
-      if (!checkoutSessionToken || !downloadToken || !result.sessionFileId) {
+      if (!checkoutSessionToken || !result.sessionFileId) {
         throw new Error("Sessão ou autorização de download indisponível.");
       }
 
+      // credentials: "include" sends the HttpOnly download-token cookie
+      // set by /api/checkout/status. Same-origin, so no CORS concerns.
       const response = await fetch(
         `/api/checkout-session/download?session=${encodeURIComponent(
           checkoutSessionToken,
         )}&file=${encodeURIComponent(result.sessionFileId)}`,
         {
           method: "GET",
-          headers: {
-            "x-download-token": downloadToken,
-          },
+          credentials: "include",
           cache: "no-store",
         },
       );
@@ -434,7 +393,7 @@ function ToolPageInner({
 
       return response.blob();
     },
-    [checkoutSessionToken, downloadToken],
+    [checkoutSessionToken],
   );
 
   const createCheckoutSessionAndRedirect = useCallback(async () => {
@@ -524,14 +483,11 @@ function ToolPageInner({
       const formData = new FormData();
       formData.append("file", blob, result.name);
 
-      const uploadHeaders: Record<string, string> = {};
-      if (downloadToken) {
-        uploadHeaders["x-download-token"] = downloadToken;
-      }
-
+      // credentials: "include" carries the HttpOnly download-token cookie
+      // issued by /api/checkout/status (same-origin request).
       const uploadRes = await fetch("/api/upload-to-cloud", {
         method: "POST",
-        headers: uploadHeaders,
+        credentials: "include",
         body: formData,
       });
 
@@ -562,7 +518,6 @@ function ToolPageInner({
     clearResults();
     setError("");
     setUploadingKey(null);
-    setDownloadToken(null);
     setCheckoutSessionToken(null);
     setFreeUnlockActive(false);
     setCopiedLink(null);

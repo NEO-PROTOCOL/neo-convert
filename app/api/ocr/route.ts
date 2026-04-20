@@ -34,11 +34,14 @@ export async function POST(request: NextRequest) {
   }
 
   const ip = getClientIp(request);
-  const rateLimit = enforceRateLimit(`ocr:${ip}`, RATE_LIMIT_OCR, RATE_LIMIT_WINDOW_MS);
+  const rateLimit = await enforceRateLimit(`ocr:${ip}`, RATE_LIMIT_OCR, RATE_LIMIT_WINDOW_MS);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: "Muitas requisições de OCR. Aguarde um minuto." },
-      { status: 429 }
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      }
     );
   }
 

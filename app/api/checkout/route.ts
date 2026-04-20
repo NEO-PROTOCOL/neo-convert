@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ip = getClientIp(req);
-  const rateLimit = enforceRateLimit(
+  const rateLimit = await enforceRateLimit(
     `checkout:${ip}`,
     CHECKOUT_RATE_LIMIT,
     CHECKOUT_WINDOW_MS,

@@ -38,6 +38,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# turso local dev sqlite (libsql file fallback)
+.turso-dev.db
+.turso-dev.db-journal
+.turso-dev.db-wal
+.turso-dev.db-shm
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

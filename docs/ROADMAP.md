@@ -18,7 +18,7 @@
 - [x] Grid de 12 ferramentas (UI)
 - [x] Upload zone integrando Vercel Blob
 - [x] Pricing 3 planos (R$7,50 / R$29 / R$79)
-- [x] CheckoutModal com Pix
+- [x] Checkout com Pix (página dedicada `CheckoutPageClient`)
 - [x] API `/api/checkout` → FlowPay API
 - [x] Email de confirmação via Mailtrap (Infra pronta)
 - [x] Motor de OCR Scanner integrado (RapidAPI)

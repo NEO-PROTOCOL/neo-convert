@@ -72,7 +72,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const ip = getClientIp(request);
-  const rateLimit = enforceRateLimit(
+  const rateLimit = await enforceRateLimit(
     `checkout-session:${ip}`,
     SESSION_RATE_LIMIT,
     SESSION_WINDOW_MS,
