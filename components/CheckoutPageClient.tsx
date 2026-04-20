@@ -49,6 +49,39 @@ export default function CheckoutPageClient({
   const [checkingStatus, setCheckingStatus] = useState(false);
   const submitAbortRef = useRef<AbortController | null>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const qrViewedRef = useRef(false);
+
+  const trackFunnelEvent = useCallback(
+    (event: string, metadata?: Record<string, unknown>) => {
+      const payload = JSON.stringify({
+        event,
+        path: "/checkout",
+        tool: plan.id,
+        ts: Date.now(),
+        metadata: metadata ?? {},
+      });
+
+      try {
+        if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: "application/json" });
+          navigator.sendBeacon("/api/funnel-event", blob);
+          return;
+        }
+      } catch {
+        // Fallback to fetch.
+      }
+
+      void fetch("/api/funnel-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {
+        // Non-blocking telemetry call.
+      });
+    },
+    [plan.id],
+  );
 
   useEffect(() => {
     if (step !== "pix") return;
@@ -144,6 +177,11 @@ export default function CheckoutPageClient({
       setPaidAt(paidAtValue);
 
       if (paid) {
+        trackFunnelEvent("payment_confirmed", {
+          chargeId,
+          status,
+          hasSession: Boolean(initialSessionToken),
+        });
         // Download token is issued server-side as an HttpOnly cookie — the
         // browser will carry it automatically to the tool page. We only pass
         // a `paid=1` signal so the tool page knows to resume the download
@@ -175,7 +213,14 @@ export default function CheckoutPageClient({
     plan.period,
     plan.price,
     sessionSummary?.returnToPath,
+    trackFunnelEvent,
   ]);
+
+  useEffect(() => {
+    if (step !== "pix" || !pixData?.qrCode || qrViewedRef.current) return;
+    qrViewedRef.current = true;
+    trackFunnelEvent("qr_viewed", { chargeId: pixData.correlationID ?? null });
+  }, [pixData?.correlationID, pixData?.qrCode, step, trackFunnelEvent]);
 
   useEffect(() => {
     if (step !== "pix" || !pixData?.correlationID) return;
@@ -271,6 +316,12 @@ export default function CheckoutPageClient({
       setPaymentStatus("CREATED");
       setPaidAt(null);
       setStep("pix");
+      qrViewedRef.current = false;
+      trackFunnelEvent("checkout_created", {
+        chargeId:
+          typeof data.correlationID === "string" ? data.correlationID : null,
+        planId: plan.id,
+      });
 
       if (typeof data.expiresAt === "string") {
         const expiresAtTs = new Date(data.expiresAt).getTime();
@@ -301,6 +352,9 @@ export default function CheckoutPageClient({
       .writeText(pixData.brCode)
       .then(() => {
         setCopied(true);
+        trackFunnelEvent("pix_copied", {
+          chargeId: pixData.correlationID ?? null,
+        });
         if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
         copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
       })
@@ -324,7 +378,7 @@ export default function CheckoutPageClient({
               letterSpacing: "-0.03em",
             }}
           >
-            Pagamento com contexto, nao com opacidade.
+            Seu arquivo está pronto para liberação imediata.
           </h1>
           <p
             style={{
@@ -335,9 +389,8 @@ export default function CheckoutPageClient({
               fontSize: 15,
             }}
           >
-            Esta pagina explicita preco, modelo comercial, entrega operacional e
-            links legais antes da geracao da cobranca Pix. E assim que destino
-            comercial deve se comportar.
+            Confirme o Pix para liberar o download completo agora. A página
+            mostra preço, modelo comercial e regras de entrega antes da cobrança.
           </p>
           {sessionSummary ? (
             <p
