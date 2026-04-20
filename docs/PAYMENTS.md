@@ -10,29 +10,22 @@ O NeoConvert usa a infraestrutura central de pagamentos da stack NEO:
 
 ---
 
-## Planos e Preços
+## Oferta e Cobrança
 
 | ID         | Nome                | Valor (centavos) | Exibição            |
 | ---------- | ------------------- | ---------------- | ------------------- |
 | `starter`  | NeoConvert Unitário | `750`            | R$ 7,50 por arquivo |
-| `pro`      | NeoConvert Pro      | `2900`           | R$ 29/mês           |
-| `business` | NeoConvert Business | `7900`           | R$ 79/mês           |
+| `pro`      | NeoConvert Pro      | `2900`           | R$ 29/mês (reserva) |
+| `business` | NeoConvert Business | `7900`           | R$ 79/mês (reserva) |
 
 > Definidos em `app/api/checkout/route.ts` no objeto `PLANS`.
 
-### Condições de cada plano
+### Estratégia atual de conversão (urgência no download)
 
-- `starter` (unitário):
-  - Cobrança por operação concluída.
-  - Sem recorrência mensal.
-  - Usado hoje pelas ferramentas ativas (`compress-pdf`, `merge-pdf`, `jpg-to-pdf`).
-  - Download liberado após pagamento, com autorização local por 1 hora.
-- `pro`:
-  - Assinatura mensal.
-  - Catálogo completo previsto + limites maiores.
-- `business`:
-  - Assinatura mensal para time/empresa.
-  - Recursos avançados (API, marca, SLA, múltiplos usuários).
+- O fluxo principal é: **upload -> processamento -> preview -> paywall -> checkout Pix -> liberação imediata do download**.
+- O foco atual é o plano `starter` (unitário) para capturar intenção quente no momento do clique de download.
+- O pagamento aprovado libera o download via cookie HttpOnly de autorização e sessão protegida.
+- `pro` e `business` permanecem mapeados para evolução comercial futura.
 
 ---
 
@@ -40,7 +33,7 @@ O NeoConvert usa a infraestrutura central de pagamentos da stack NEO:
 
 ### Endpoint usado
 
-```
+```link
 POST https://api.flowpay.cash/api/create-charge
 ```
 
@@ -123,4 +116,4 @@ Ver [ENV.md](./ENV.md)
 1. Configurar `FLOWPAY_API_URL` e `FLOWPAY_INTERNAL_API_KEY` no ambiente
 2. Chamar o checkout no front (`/api/checkout`)
 3. Validar resposta com `brCode`, `qrCode` e `correlationID`
-4. Simular confirmação e validar transição automática para status pago no modal via `/api/checkout/status/:chargeId`
+4. Simular confirmação e validar transição automática para status pago e liberação de download via `/api/checkout/status/:chargeId`

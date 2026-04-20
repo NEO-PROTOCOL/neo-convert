@@ -3,14 +3,14 @@
 ## 🎯 Estratégia: Portfólio de 10 Micro-SaaS
 
 **Objetivo:** 10 produtos com renda recorrente anual que somem R$15k-30k/mês até final de 2026.  
-**Modelo:** Assinatura Pix mensal · zero cartão · freemium
+**Modelo atual (#1):** processamento gratuito com paywall no download (Pix) para capturar intenção quente
 
 ---
 
 ## Produto #1 — NeoConvert ← VOCÊ ESTÁ AQUI
 
 **Status:** 🟡 Em desenvolvimento  
-**Meta:** 50 assinantes Pro em 90 dias = R$1.450/mês passivo
+**Meta:** converter usuários no momento do download (arquivo pronto) com desbloqueio imediato via Pix
 
 ### Sprint 1 — MVP (concluído ✅)
 
@@ -30,10 +30,11 @@
 - [ ] Conectar IA ao OCR (Resumo inteligente real)
 - [ ] Ferramenta real: comprimir PDF (pdf-lib client-side)
 - [ ] Ferramenta real: mesclar PDFs
-- [ ] Webhook Pix → ativar assinatura automático
+- [ ] Webhook Pix → confirmar cobrança e liberar download sem depender apenas de polling
 - [ ] Autenticação (magic link via Resend ou Mailtrap)
 - [ ] Painel do usuário (histórico, downloads)
-- [ ] Rate limiting por plano
+- [ ] Rate limiting por comportamento e origem (IP + sessão)
+- [ ] Instrumentação de funil (`upload_started`, `file_processed`, `preview_viewed`, `download_clicked`, `checkout_created`, `pix_copied`, `payment_confirmed`, `download_released`)
 
 ### Sprint 3 — Growth
 
@@ -72,7 +73,7 @@
 
 ## Cronograma estimado
 
-```
+```text
 Mar/2026: NeoConvert MVP → primeiros usuários
 Abr/2026: NeoConvert funcional + NeoLink iniciado
 Mai/2026: NeoLink + NeoQR

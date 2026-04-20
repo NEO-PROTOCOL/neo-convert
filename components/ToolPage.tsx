@@ -78,6 +78,7 @@ function ToolPageInner({
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [rehydratingSession, setRehydratingSession] = useState(false);
   const latestResultsRef = useRef<ResultItem[]>([]);
+  const previewTrackedRef = useRef(false);
   const acceptedExtensions = useRef(
     accept
       .split(",")
@@ -116,7 +117,40 @@ function ToolPageInner({
       return [];
     });
     setCloudUrls({});
+    previewTrackedRef.current = false;
   }, []);
+
+  const trackFunnelEvent = useCallback(
+    (event: string, metadata?: Record<string, unknown>) => {
+      const payload = JSON.stringify({
+        event,
+        path: pathname,
+        tool: payment?.planId ?? "unknown",
+        ts: Date.now(),
+        metadata: metadata ?? {},
+      });
+
+      try {
+        if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: "application/json" });
+          navigator.sendBeacon("/api/funnel-event", blob);
+          return;
+        }
+      } catch {
+        // Fallback to fetch.
+      }
+
+      void fetch("/api/funnel-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {
+        // Non-blocking telemetry call.
+      });
+    },
+    [pathname, payment?.planId],
+  );
 
   const addFiles = useCallback(
     (incoming: FileList | File[] | null) => {
@@ -150,8 +184,12 @@ function ToolPageInner({
       setFiles((prev) => (multi ? [...prev, ...validFiles] : [validFiles[0]]));
       clearResults();
       setError("");
+      trackFunnelEvent("upload_started", {
+        files: validFiles.length,
+        multi,
+      });
     },
-    [clearResults, multi],
+    [clearResults, multi, trackFunnelEvent],
   );
 
   // Lógica para auto-carregar arquivo via URL (vindo da Home)
@@ -350,12 +388,19 @@ function ToolPageInner({
       } else {
         setFreeUnlockActive(false);
       }
+      trackFunnelEvent("file_processed", { files: processed.length });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao processar arquivo.");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!results.length || previewTrackedRef.current) return;
+    previewTrackedRef.current = true;
+    trackFunnelEvent("preview_viewed", { files: results.length });
+  }, [results, trackFunnelEvent]);
 
   const fetchProtectedResultBlob = useCallback(
     async (result: ResultItem): Promise<Blob> => {
@@ -411,6 +456,10 @@ function ToolPageInner({
 
     setRedirectingToCheckout(true);
     setError("");
+    trackFunnelEvent("download_clicked", {
+      locked: true,
+      files: results.length,
+    });
 
     try {
       const formData = new FormData();
@@ -440,6 +489,10 @@ function ToolPageInner({
       }
 
       setCheckoutSessionToken(data.session);
+      trackFunnelEvent("checkout_session_created", {
+        session: data.session,
+        files: results.length,
+      });
       window.location.assign(data.checkoutUrl);
     } catch (sessionError) {
       setError(
@@ -457,6 +510,7 @@ function ToolPageInner({
     payment,
     paymentEnabled,
     results,
+    trackFunnelEvent,
   ]);
 
   const triggerProtectedDownload = useCallback(
@@ -863,7 +917,7 @@ function ToolPageInner({
                           fontWeight: 700,
                         }}
                       >
-                        Download bloqueado até confirmação de pagamento.
+                        Seu arquivo está pronto. Falta confirmar o Pix para liberar o download completo agora.
                       </div>
                       <div
                         style={{
@@ -872,11 +926,11 @@ function ToolPageInner({
                           marginBottom: 12,
                         }}
                       >
-                        Valor unitário:{" "}
+                        Oferta de desbloqueio imediato:{" "}
                         <strong style={{ color: "var(--neo-green)" }}>
                           {payment.planPrice}
                         </strong>
-                        . Autorização válida por 1 hora neste dispositivo.
+                        . Após pagamento, a liberação acontece em segundos e fica ativa por 1 hora neste dispositivo.
                       </div>
                       <div style={{ marginBottom: 12 }}>
                         <Link
@@ -891,7 +945,7 @@ function ToolPageInner({
                             fontSize: 13,
                           }}
                         >
-                          Ver detalhes comerciais e políticas deste plano
+                          Ver detalhes comerciais desta liberação
                         </Link>
                       </div>
                       <button
@@ -904,7 +958,7 @@ function ToolPageInner({
                       >
                         {redirectingToCheckout
                           ? "Preparando compra..."
-                          : "⚡ Liberar download agora"}
+                          : "⚡ Pagar e liberar download agora"}
                       </button>
                     </div>
                   )}
@@ -943,6 +997,10 @@ function ToolPageInner({
                                 document.body.appendChild(anchor);
                                 anchor.click();
                                 anchor.remove();
+                                trackFunnelEvent("download_released", {
+                                  source: r.source,
+                                  file: r.name,
+                                });
                                 return;
                               }
                               void triggerProtectedDownload(r).catch(
@@ -954,6 +1012,10 @@ function ToolPageInner({
                                   );
                                 },
                               );
+                              trackFunnelEvent("download_released", {
+                                source: r.source,
+                                file: r.name,
+                              });
                             }}
                             className="btn-primary"
                             style={{ justifyContent: "center" }}
